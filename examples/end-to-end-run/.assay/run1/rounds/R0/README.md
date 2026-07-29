@@ -3,7 +3,7 @@
 ## 근거
 모든 주장은 로컬 스냅샷 원문 인용으로 뒷받침된다.
 
-> "It is not fully sufficient to be right, you must also be effective."
+> "Approachable is better than simple."
 > — sources/R-A.md:1 (https://api.github.com/zen 원문)
 
 > "This domain is for use in documentation examples without needing permission."

@@ -2,8 +2,12 @@
 
 ## `end-to-end-run/` — a real run, captured verbatim
 
-Nothing in that directory was written after the fact. Every file was produced by the scripts in
-`../skill/scripts/`, against live network sources and a live Codex worker, on 2026-07-29.
+Every script-produced file in that directory came out of `../skill/scripts/`, against live network
+sources and a live Codex worker, on 2026-07-29. One file is not script-produced: `anchors.jsonl` is
+curated by the agent after collection, and its four `captured_at` values were written afterwards
+(all four read `2026-07-30T00:00:00Z`, not the per-fetch timestamps in `sources.jsonl` and
+`fetch-log.jsonl`). The anchors themselves are still checked against the sealed snapshots by
+`reach-gate.sh`; only the recording time is retrospective.
 
 It exists because this project claims its gates are enforced by exit codes rather than prose, and a
 claim like that is worth exactly as much as the run you can point at.

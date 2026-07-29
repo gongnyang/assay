@@ -83,8 +83,8 @@ marketing 소스의 앵커는 `vendor-claim`이어야 하고 자동검증 축에
 `scores.tsv`는 라운드당 한 행의 사람이 읽는 기록이다.
 
 ```text
-round  axis_targeted  <축...>  min  sum  gate  verdict  note
-R0     -              2 3 1   1    6    FAIL  BASE     베이스라인
+round  axis  <축...>  min  sum  gate  verdict  note
+R0     -     2 3 1   1    6    FAIL  BASE     베이스라인
 ```
 
 축 수·순서는 `gate.conf`가 정한다. `gate`는 판정식 결과, `verdict`는 `BASE`, `KEEP`, `SIMPLIFY`, `REVERT`, `STALL` 중 기록 상태다. PASS가 있다고 루프 verdict가 KEEP으로 바뀌지 않는다.
@@ -92,7 +92,7 @@ R0     -              2 3 1   1    6    FAIL  BASE     베이스라인
 `rounds.jsonl`은 같은 라운드의 기계 기록이다.
 
 ```json
-{"round":"R1","ts":"2026-07-30T04:10:00Z","axis":"A3","scores":{"A1":2,"A2":3,"A3":3},"prev":{"A1":2,"A2":3,"A3":1},"delta":{"A3":2},"min":2,"sum":8,"gate":"FAIL","verdict":"KEEP","anchors":{"A3":"R-C#03"},"diff":"<대상 변경>","reason":"최저 축 개선"}
+{"round":"R1","ts":"2026-07-30T04:10:00Z","axis":"A3","axes":"A1,A2,A3","scores":[2,3,3],"min":2,"sum":8,"max":12,"gate":"FAIL","verdict":"KEEP","delta":"sum 6->8","note":"aid 보강","prev_hash":"<직전 행의 self_hash>","self_hash":"<이 행의 sha256>","state":{"kind":"git","root":"<readonly 루트>","commit":"<커밋>","tree_hash":"<트리 해시>"}}
 ```
 
 REVERT도 반드시 두 파일에 남긴 뒤 exit 1을 낸다. 복원 증거는 그 뒤 `bench-revert.sh`가 같은 이력에 추가한다. 다음 라운드는 이 증거 없이 기록할 수 없다.
@@ -129,4 +129,4 @@ CI의 라이브 smoke는 네트워크가 필요한 `reach-fetch.sh`와 `reach-ga
 
 ## 9. 위협 모델
 
-seal·receipt·prov·해시체인은 모두 공개 공식의 무키(unkeyed) SHA-256이다. 이 게이트가 막는 대상은 관대해지려는 에이전트의 무심한 우회와 한 줄 `sed` 수정이다. 해시를 다시 계산해 증거 파일을 의도적으로 날조하는 부정은 막지 못하며, 그러면 V1·V2·V5·V8 검증을 통과시킬 수 있다. 후자는 게이트 밖의 외부 CI·독립 리뷰어가 막아야 한다. 이 한계를 숨기면 이 스킬의 정직성 불변식을 위반한다.
+seal(`reach.conf.seal`)·receipt(`reach-gate.receipt`)·prov(`metrics/<name>.tsv.prov`)·해시체인(`rounds.jsonl`)은 모두 공개 공식의 무키(unkeyed) SHA-256이다. 이 게이트가 막는 대상은 관대해지려는 에이전트의 무심한 우회와 한 줄 `sed` 수정이다. 해시를 다시 계산해 증거 파일을 의도적으로 날조하는 부정은 막지 못하며, 그러면 봉인 설정 바꿔치기, 축1 통과 영수증 위조, 계측 provenance 손타이핑, 독립 채점 CSV 손타이핑 검사를 통과시킬 수 있다. 후자는 게이트 밖의 외부 CI·독립 리뷰어가 막아야 한다. 이 한계를 숨기면 이 스킬의 정직성 불변식을 위반한다.

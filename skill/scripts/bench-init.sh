@@ -7,61 +7,36 @@ need_python3
 
 [ "$#" -eq 5 ] || usage_die "usage: $0 <run-dir> <axes-csv> <min-req> <sum-req> <readonly>"
 
-python3 - "$@" <<'PY'
+PYTHONPATH="$(dirname "$0")${PYTHONPATH:+:$PYTHONPATH}" python3 - "$@" <<'PY'
 import datetime as dt
-import hashlib
 import json
 import os
 import re
 import shlex
 import sys
-import tempfile
 from decimal import Decimal, InvalidOperation
 
+from _pylib import atomic_write, verify_reach_receipt
 run_arg, axes_raw, minimum_raw, total_raw, readonly = sys.argv[1:]
+
+REACH_RECEIPT_FIELDS = (
+    "ts",
+    "reach_conf_sha256",
+    "anchors_sha256",
+    "usable",
+    "primary",
+    "confirmed_anchors",
+)
 
 def die(message, code=2):
     print("!! " + message, file=sys.stderr)
     raise SystemExit(code)
 
-def sha256(path):
-    h = hashlib.sha256()
-    try:
-        with open(path, "rb") as src:
-            for block in iter(lambda: src.read(1024 * 1024), b""):
-                h.update(block)
-    except OSError as exc:
-        die(f"sha256 계산 실패: {path}: {exc}")
-    return h.hexdigest()
-
 def receipt_check(run):
-    receipt = os.path.join(run, "reach-gate.receipt")
-    if not os.path.isfile(receipt):
-        die("축1을 통과하지 않았다. reach-gate.sh를 먼저 실행하라")
     try:
-        lines = open(receipt, encoding="utf-8").read().splitlines()
-        if len(lines) != 1 or not lines[0].strip():
-            die("reach-gate.receipt는 JSON 1행이어야 합니다.")
-        value = json.loads(lines[0])
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        die(f"reach-gate.receipt 형식 오류: {exc}")
-    required = ("ts", "question_sha256", "reach_conf_sha256", "sources_sha256",
-                "anchors_sha256", "usable", "primary", "confirmed_anchors")
-    if not isinstance(value, dict) or any(k not in value for k in required):
-        die("reach-gate.receipt 필수가 누락되었습니다.")
-    if (not isinstance(value["ts"], str) or not value["ts"].strip()
-            or not all(isinstance(value[k], str) and re.fullmatch(r"[0-9a-f]{64}", value[k])
-                for k in ("question_sha256", "reach_conf_sha256", "sources_sha256", "anchors_sha256"))
-            or not all(isinstance(value[k], int) and not isinstance(value[k], bool) and value[k] >= 0
-                       for k in ("usable", "primary", "confirmed_anchors"))):
-        die("reach-gate.receipt 필드 형식이 잘못되었습니다.")
-    anchors, conf = os.path.join(run, "anchors.jsonl"), os.path.join(run, "reach.conf")
-    if not os.path.isfile(anchors) or not os.path.isfile(conf):
-        die("reach-gate.receipt의 anchors.jsonl 또는 reach.conf 원본이 없습니다.")
-    if sha256(anchors) != value["anchors_sha256"]:
-        die("reach-gate 통과 후 anchors.jsonl이 변조되었습니다.")
-    if sha256(conf) != value["reach_conf_sha256"]:
-        die("reach-gate 통과 후 reach.conf가 변조되었습니다.")
+        verify_reach_receipt(run, REACH_RECEIPT_FIELDS)
+    except (OSError, TypeError, ValueError) as exc:
+        die(str(exc))
 
 def metric_gate(anchor, lineno):
     measure = anchor["measure"].strip()
@@ -151,24 +126,36 @@ try:
     os.makedirs(run, exist_ok=True)
     os.makedirs(os.path.join(run, "anchors"), exist_ok=True)
     stamp = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    content = [f"# 봉인: {stamp} — 이 파일은 루프 종료까지 수정 금지(S0).",
-               f"AXES={axes_raw}", f"N_AXES={len(axes)}", f"MIN_REQ={minimum}", f"SUM_REQ={total}",
-               "MAX_SCORE=4", "STALL_LIMIT=3", f"READONLY={readonly}", f"TARGET_DIR={target}",
-               f"R5_GATES={len(gates)}"]
+    content = [
+        f"# 봉인: {stamp} — 이 파일은 루프 종료까지 수정 금지(S0).",
+        f"AXES={axes_raw}",
+        f"N_AXES={len(axes)}",
+        f"MIN_REQ={minimum}",
+        f"SUM_REQ={total}",
+        "MAX_SCORE=4",
+        "STALL_LIMIT=3",
+        f"READONLY={readonly}",
+        f"TARGET_DIR={target}",
+        f"R5_GATES={len(gates)}",
+    ]
     content.extend("METRIC_GATE=" + gate_line for gate_line in gates)
-    def atomic(path, text):
-        fd, tmp = tempfile.mkstemp(prefix=".assay-", dir=run, text=True)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8", newline="") as out:
-                out.write(text)
-            os.replace(tmp, path)
-        except BaseException:
-            try: os.unlink(tmp)
-            except OSError: pass
-            raise
-    atomic(gate, "\n".join(content) + "\n")
-    atomic(os.path.join(run, "scores.tsv"), "\t".join(["round", "axis", *axes, "min", "sum", "gate", "verdict", "note"]) + "\n")
-    atomic(os.path.join(run, "rounds.jsonl"), "")
+    score_header = [
+        "round",
+        "axis",
+        *axes,
+        "min",
+        "sum",
+        "gate",
+        "verdict",
+        "note",
+    ]
+    outputs = [
+        (gate, "\n".join(content) + "\n"),
+        (os.path.join(run, "scores.tsv"), "\t".join(score_header) + "\n"),
+        (os.path.join(run, "rounds.jsonl"), ""),
+    ]
+    for path, text in outputs:
+        atomic_write(path, text)
 except OSError as exc:
     die(f"bench 봉인물을 쓸 수 없습니다: {exc}")
 print(f"초기화 완료: {run}")

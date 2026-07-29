@@ -35,8 +35,8 @@ Reach의 산출물은 `<run>/sources.jsonl`과 `<run>/anchors.jsonl` 두 장뿐�
 `reach-init.sh <run> <질문파일> <최소소스수> <poc상한%>`를 한 번 실행한다. 이 단계는 다음을 `reach.conf`에 봉인한다.
 
 - `QUESTION_SHA256`: 질문 본문의 해시. 질문을 바꾸려면 기존 런을 고치지 말고 새 런을 연다.
-- `MIN_SOURCES`와 `MIN_PRIMARY`: 기본값은 각각 3과 2다. 최소 표본과 1차 소스 하한을 함께 둔다.
-- `POC_MAX_PCT`와 `MANUAL_MAX_PCT`: 기본값은 각각 30과 33이다. 접근 예외가 전체 근거를 대체하지 못하게 한다.
+- `MIN_SOURCES`와 `MIN_PRIMARY`: `MIN_SOURCES`는 3번째 인자로 반드시 넘겨야 하는 필수값(생략 시 exit 64)이며 기본값이 없다. `MIN_PRIMARY`만 2로 하드코딩된 기본값이다. 최소 표본과 1차 소스 하한을 함께 둔다.
+- `POC_MAX_PCT`와 `MANUAL_MAX_PCT`: `POC_MAX_PCT`는 4번째 인자로 반드시 넘겨야 하는 필수값이고, `MANUAL_MAX_PCT`만 33으로 하드코딩된 기본값이다. 접근 예외가 전체 근거를 대체하지 못하게 한다.
 - `AXES_MIN/MAX`: 3과 7. 축 수는 시작 전에 제한한다.
 
 질문이 없으면 수집은 수렴하지 않고, 질문을 사후 변경하면 이미 모은 소스가 질문에 맞춰 재해석된다. 기존 `reach.conf`가 있으면 exit 1의 재선언 거부를 받아들인다. 형식 오류는 exit 2다.

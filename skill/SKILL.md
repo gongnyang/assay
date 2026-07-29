@@ -1,20 +1,10 @@
 ---
 name: assay
-description: >
-  MUST USE when the user needs to collect multiple web sources, preserve source
-  snapshots, verify literal evidence anchors, and turn those anchors into a
-  sealed rubric and improvement loop; e.g. "레퍼런스 대비 채점", "근거를 모아
-  평가표로", "벤치마킹해서 합격선까지 개선", "품질 게이트", "assay". Also MUST
-  USE when a result must be improved against independently checkable references,
-  not merely described. NOT for: one-off fact lookup or ordinary web search,
-  writing a report/translation/summary from already supplied material, publishing
-  or login/cookie/API-key work, or a platform that has a more specific installed
-  skill (use that skill first).
+description: MUST USE when the user needs to collect multiple web sources, preserve source snapshots, verify literal evidence anchors, and turn those anchors into a sealed rubric and improvement loop; e.g. "레퍼런스 대비 채점", "근거를 모아 평가표로", "벤치마킹해서 합격선까지 개선", "품질 게이트", "assay". Also MUST USE when a result must be improved against independently checkable references, not merely described. NOT for: one-off fact lookup or ordinary web search, writing a report/translation/summary from already supplied material, publishing or login/cookie/API-key work, or a platform that has a more specific installed skill (use that skill first).
 ---
 
 # assay — 근거 수집을 채점 기준으로 승격하는 2축 루프
 한 줄 원칙: **웹에서 원문 근거를 수집·검증하고, 그 앵커가 만든 기준이 통과할 때까지만 개선한다.**
-
 이 스킬은 두 축을 분리해 연결한다. Reach는 접근 이력과 검증된 앵커만 생산한다. Bench는 그 두 계약 파일 밖의 근거를 채점에 쓰지 않는다. 앵커 없는 축, 무측정 숫자, 미검증 축의 PASS는 금지다.
 
 ## 시작 전 고정
@@ -41,13 +31,13 @@ description: >
 
 `$S/reach-init.sh .assay/<run> <질문파일> <최소소스수> <poc상한%>`를 한 번 실행한다. 재실행으로 질문을 바꾸지 않는다. `reach.conf`가 이미 있으면 고친 뒤 새 런을 시작한다.
 
+`질문파일` 예: `질문: 무엇을 검증할까?` / `소비처: 출시 승인`.
+
 ### R1. 축을 팬아웃한다
 
-질문을 서로 다른 하위 질문 3~7개로 나누고, 축마다 수집 워커 하나를 둔다. 워커는 수집·스냅샷만 하며 신뢰도와 판정은 하지 않는다.
+질문을 서로 다른 하위 질문 3~7개로 나누고, 축마다 수집 워커 하나를 둔다. 워커는 수집·스냅샷만 하며 신뢰도와 판정은 하지 않는다. 실행: `$S/reach-fanout.sh .assay/<run> <axes.tsv>`.
 
-```bash
-$S/reach-fanout.sh .assay/<run> <axes.tsv>
-```
+`axes.tsv` 예: `AX-1<TAB>하위 질문<TAB>3` (탭으로 구분한 3열).
 
 각 워커의 반환물은 자기 축 ID, `sources.jsonl` 반환 경로, `contracts/sources.schema.json`에 맞는 행이다.
 
@@ -57,15 +47,14 @@ $S/reach-fanout.sh .assay/<run> <axes.tsv>
 
 ### R3. 접합 계약을 통과시킨다
 
-```bash
-$S/reach-gate.sh .assay/<run>
-```
+R2 수집 뒤 사람이 `anchors.jsonl`을 직접 작성한다. 형식은 `contracts/anchors.schema.json`이다.
+예: `{"aid":"R-A#03","sid":"R-A","kind":"quote","axis_hint":"A2","active":true,"excerpt":"원문 스냅샷에 실제로 있는 문자열","locator":"R-A.md:§2","measured":false,"measure":"","claim_type":"verified","confidence":"high","verdict":"CONFIRMED","refuted_by":"","captured_at":"2026-07-30T04:03:40Z"}`.
 
-이것이 Bench 진입의 유일한 관문이다. 소스·앵커 JSONL은 각각 `contracts/sources.schema.json`, `contracts/anchors.schema.json`을 따른다. excerpt는 번역·요약·말줄임이 아닌 스냅샷 안의 리터럴 문자열이어야 한다. 실패한 접근 기록은 앵커로 바꾸지 않는다.
+실행: `$S/reach-gate.sh .assay/<run>`. 이것이 Bench 진입의 유일한 관문이며 `reach-gate.sh`가 스키마와 excerpt의 리터럴성을 검사한다. 실패한 접근 기록은 앵커로 바꾸지 않는다.
 
 ### R4. 다른 맥락에서 반박한다
 
-`$S/reach-refute.sh .assay/<run>`로 수집자와 다른 워커가 원 URL을 다시 확인하게 한다. `CONFIRMED`만 근거이며 `UNVERIFIED`와 `REFUTED`는 루브릭에서 참조하지 않는다. REFUTED 행은 삭제하지 않고 `active:false`로 남긴다.
+`$S/reach-refute.sh .assay/<run>`로 수집자와 다른 워커가 원 URL을 다시 확인하게 한다. `CONFIRMED`만 근거이며 `UNVERIFIED`와 `REFUTED`는 루브릭에서 참조하지 않는다.
 
 ### R5. 측정값을 전제로 승격한다
 
@@ -75,29 +64,19 @@ $S/reach-gate.sh .assay/<run>
 
 ### S0. 합격선을 먼저 봉인한다
 
-```bash
-$S/bench-init.sh .assay/<run> A1,A2,A3,A4,A5 3 17 <readonly>
-```
-
-`PASS ⟺ min(axis) ≥ M AND sum(axis) ≥ S`에서 최저 축 조건은 필수다. 축 수는 3~7개다.
+`$S/bench-init.sh .assay/<run> A1,A2,A3,A4,A5 3 17 <readonly>`로 실행한다. `PASS ⟺ min(axis) ≥ M AND sum(axis) ≥ S`에서 최저 축 조건은 필수다.
 
 ### S2. 앵커가 있는 루브릭만 만든다
 
-`contracts/rubric.template.md`를 `rubric.md`의 형식으로 쓴다. 각 축의 0·3·4는 `aid`를 명시하고, 0점과 4점은 서로 다른 sid여야 한다. 자동검증 축은 `measure:` 명령과 `metrics/` 출력이 필요하다.
-
-```bash
-$S/rubric-lint.sh .assay/<run>
-```
+`contracts/rubric.template.md`를 `rubric.md`의 형식으로 쓴다. 각 축의 0·3·4는 `aid`를 명시하고 자동검증 축은 `measure:` 명령과 `metrics/` 출력이 필요하다. 세부 aid/sid 규칙은 `references/rubric-design.md`를 따른다. 검사: `$S/rubric-lint.sh .assay/<run>`.
 
 전부 같은 점수를 받는 항목은 축이 아니라 전제 후보다. 레퍼런스 복제를 4점으로 정의하지 않는다.
 
 ### S3. 고치기 전에 베이스라인을 잰다
 
-```bash
-$S/bench-log.sh .assay/<run> R0 - 2,3,3,3,3 "베이스라인"
-```
+기록: `$S/bench-log.sh .assay/<run> R0 - 2,3,3,3,3 "베이스라인"`.
 
-각 점수에는 `anchors/R0.md`의 실물 인용이 필요하다. 파일명·인용은 유니코드를 그대로 허용한다. 점수·min·sum·게이트·판정은 사람이 계산하지 않는다.
+각 점수에는 `anchors/R0.md`의 실물 인용이 필요하다. 예: `B-DOC: <설명> (R-A#01)`. 점수·min·sum·게이트·판정은 사람이 계산하지 않는다.
 
 ### S4. 한 축씩 개선하고 되돌린다
 
@@ -112,6 +91,7 @@ $S/bench-log.sh .assay/<run> R0 - 2,3,3,3,3 "베이스라인"
 ## 규모 분기
 
 - 단건(축 3~4): R0~R3, S0~S4, G1을 실행한다. 앵커가 5개 이하일 때만 R4 자기 재검증을 허용하며, `reach-gate.sh`와 인용 의무는 생략하지 않는다.
+- `reach-gate.sh`는 `refute.jsonl` 존재를 검사하지 않으므로 R4 생략은 감사자 책임이다.
 - 본격(축 5개 이상): R0~R5와 G1~G3 전부를 실행한다.
 - 루브릭 재사용: 새 대상의 소스를 R0~R4로 다시 모으고 기존 앵커의 CONFIRMED 상태를 확인한 뒤 S3부터 시작한다.
 - 정성 축이 과반이면 규모와 무관하게 G2를 생략하지 않는다.

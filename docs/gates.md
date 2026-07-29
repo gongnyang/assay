@@ -117,7 +117,7 @@ Three rules: file existence is not availability, so each candidate is actually e
 
 ## Axis 2 — Bench
 
-### `bench-init.sh <run-dir> <axes-csv> <min-req> <sum-req>`
+### `bench-init.sh <run-dir> <axes-csv> <min-req> <sum-req> <readonly>`
 
 Seals the axes, the pass mark, the read-only scope and any thresholds promoted from measured anchors (R5).
 
@@ -239,7 +239,7 @@ Measures a GitHub repository. M1–M7 are preconditions: a single H1 in a root `
 
 The shipping gate. Everything here is exit 2, because a broken distribution is not a matter of degree.
 
-Refuses: `__MACOSX/`, `.DS_Store` and `._*` residue; a script without an exec bit or a shebang; `SKILL.md` front matter that will not parse, or that declares files which do not exist; a `SKILL.md` over its 130-line ceiling; a missing member of the fixed lists of 6 references and 5 contracts; the string `reference-research` anywhere in the tree; platform brand strings inside `scripts/`, which would mean site-specific logic has leaked out of `channels.yml`; and a failure in any of the 8 exit-code regression fixtures, one of which is the Unicode-filename citation case.
+Refuses: `__MACOSX/`, `.DS_Store` and `._*` residue; a script without an exec bit or a shebang; `SKILL.md` front matter that will not parse, or that declares files which do not exist; a `SKILL.md` over its 130-line ceiling; a missing member of the fixed lists of 6 references and 5 contracts; the string `reference-research` anywhere in the tree; platform brand strings inside `scripts/`, which would mean site-specific logic has leaked out of `channels.yml`; and a failure in any of the 16 exit-code regression fixtures, one of which is the Unicode-filename citation case.
 
 | Exit | Condition |
 |---|---|

@@ -19,7 +19,7 @@ First public release. This is a rebuild rather than an increment: the predecesso
 - **Measurement provenance.** Instruments write a `.tsv.prov` sidecar next to every TSV; only provenance-backed measurements count as evidence.
 - **`SIMPLIFY` verdict.** An equal total is now adoptable when a provenance-backed measurement shows line count, file count or dependency count falling. Previously an equal total was always a REVERT, so the inherited "a simplification is a win" rule had no implementation.
 - **`measure-repo.sh`**, implementing the repository preconditions M1–M7 (which stop scoring on violation) and the scoring inputs M8–M18 (which decide nothing on their own).
-- **`install-gate.sh`**, the shipping gate: residue, shebangs and exec bits, front matter against declared files, the `SKILL.md` line ceiling, banned strings, brand strings in `scripts/`, and 8 exit-code regression fixtures.
+- **`install-gate.sh`**, the shipping gate: residue, shebangs and exec bits, front matter against declared files, the `SKILL.md` line ceiling, banned strings, brand strings in `scripts/`, and 16 exit-code regression fixtures.
 - **Documentation:** [docs/how-it-works.md](docs/how-it-works.md), [docs/gates.md](docs/gates.md), [docs/design-decisions.md](docs/design-decisions.md), [docs/genealogy.md](docs/genealogy.md), and this repository's public README in English and Korean.
 
 ### Changed

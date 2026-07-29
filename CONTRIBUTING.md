@@ -22,7 +22,7 @@ The product of this repository is its gates. That shapes what gets accepted.
 
 Anything that touches `skill/scripts/` must arrive with all four of these.
 
-1. **A regression fixture that fails before the change and passes after it.** `install-gate.sh` runs 8 exit-code fixtures; if your change alters what a script accepts or refuses, it belongs in that set.
+1. **A regression fixture that fails before the change and passes after it.** `install-gate.sh` runs 16 exit-code fixtures; if your change alters what a script accepts or refuses, it belongs in that set.
 2. **`bash -n` clean across every script in the tree.**
 3. **`install-gate.sh <skill-dir>` exiting 0.** This checks shebangs, exec bits, the front matter against the declared files, the `SKILL.md` line ceiling, banned strings and the fixtures.
 4. **No regression on non-ASCII paths.** Korean filenames, spaces and NFD-normalized paths currently work. They stopped working once before, silently, and legitimate anchors were rejected as uncited for it.

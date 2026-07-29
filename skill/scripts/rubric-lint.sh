@@ -12,35 +12,28 @@ RUN=$1
 [ -f "$RUN/gate.conf" ] || die 2 "gate.conf가 없다 — bench-init.sh를 먼저 실행하라."
 seal_verify "$RUN/gate.conf"
 
-exec python3 - "$RUN" <<'PY'
-import hashlib, json, re, shlex, sys
+PYTHONPATH="$(dirname "$0")${PYTHONPATH:+:$PYTHONPATH}" exec python3 - "$RUN" <<'PY'
+import json, re, shlex, sys
 from pathlib import Path
+
+from _pylib import verify_reach_receipt
 run = Path(sys.argv[1])
 def stop(code, messages):
     for message in messages:
         print(f"!! {message}", file=sys.stderr)
     sys.exit(code)
-def digest(path):
-    try:
-        return hashlib.sha256(path.read_bytes()).hexdigest()
-    except OSError as exc:
-        stop(2, [f"{path.name} 해시 계산 실패: {exc}"])
-def reach_receipt(path):
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        stop(2, [f"reach-gate.receipt 읽기 실패: {exc}"])
-    if not isinstance(value, dict):
-        stop(2, ["reach-gate.receipt는 JSON 객체여야 한다."])
-    return value
 # S2는 현재 anchors.jsonl·reach.conf가 축1 통과 당시의 것인지 먼저 확인한다.
-reach = reach_receipt(run / "reach-gate.receipt")
-for field, path in (("anchors_sha256", run / "anchors.jsonl"),
-                    ("reach_conf_sha256", run / "reach.conf")):
-    if not path.is_file():
-        stop(2, ["축1을 통과하지 않았다. reach-gate.sh를 먼저 실행하라"])
-    if not isinstance(reach.get(field), str) or reach[field] != digest(path):
-        stop(2, [f"reach-gate.receipt와 현재 {path.name} 해시가 다르다"])
+def reach_receipt(run):
+    required_fields = (
+        "anchors_sha256",
+        "reach_conf_sha256",
+    )
+    try:
+        return verify_reach_receipt(run, required_fields)
+    except (OSError, TypeError, ValueError) as exc:
+        stop(2, [str(exc)])
+reach_receipt(run)
+
 def conf(path):
     values = {}
     try:

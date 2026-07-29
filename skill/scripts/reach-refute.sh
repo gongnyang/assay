@@ -70,6 +70,7 @@ def prompt(j):
 필수 키: aid, sid, worker_id, verdict, refetched_url, refetched_sha256.
 verdict: CONFIRMED|UNVERIFIED|REFUTED. refetched_sha256: 방금 원 URL에서 얻은 바이트의 64자리 sha256.
 
+aid: {aid}
 sid: {sid}
 excerpt: {excerpt}
 locator: {locator}

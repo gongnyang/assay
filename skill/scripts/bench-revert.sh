@@ -7,43 +7,21 @@ need_python3
 
 [ "$#" -eq 2 ] || usage_die "usage: $0 <run-dir> <round>"
 seal_verify "$1/gate.conf"
-
-exec python3 - "$@" <<'PY'
+PYTHONPATH="$(dirname "$0")${PYTHONPATH:+:$PYTHONPATH}" exec python3 - "$@" <<'PY'
 import hashlib
-import json
 import os
 import shutil
 import subprocess
-import sys
+import sys; from _pylib import append_record, verify_chain
 from datetime import datetime, timezone
 
 def die(message, code=2):
     print("!! " + message, file=sys.stderr)
     raise SystemExit(code)
 
-def record_hash(record):
-    body = {key: value for key, value in record.items() if key not in {"prev_hash", "self_hash"}}
-    return hashlib.sha256(json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
-
-def chain(path):
-    records, previous = [], "GENESIS"
-    try: source = open(path, encoding="utf-8")
-    except OSError: die("rounds.jsonl이 필요합니다.")
-    for lineno, raw in enumerate(source, 1):
-        if not raw.strip(): continue
-        try: record = json.loads(raw)
-        except json.JSONDecodeError as exc: die(f"rounds.jsonl:{lineno}: JSON 오류: {exc.msg}")
-        if (not isinstance(record, dict) or record.get("prev_hash") != previous
-                or not isinstance(record.get("self_hash"), str) or record["self_hash"] != record_hash(record)):
-            die(f"rounds.jsonl:{lineno}: 해시 체인이 끊겼습니다.")
-        previous = record["self_hash"]; records.append(record)
-    return records
-
-def append(path, records, record):
-    record["prev_hash"] = records[-1]["self_hash"] if records else "GENESIS"
-    record["self_hash"] = record_hash(record)
-    with open(path, "a", encoding="utf-8") as out:
-        out.write(json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+def checked(f, *args):
+    try: return f(*args)
+    except (OSError, TypeError, ValueError) as exc: die(str(exc).replace(rounds, "rounds.jsonl"))
 
 def target_from(conf):
     target = None
@@ -137,7 +115,7 @@ def snapshot_restore(target, run, previous, state):
 run, requested = os.path.abspath(sys.argv[1]), sys.argv[2]
 conf, rounds = os.path.join(run, "gate.conf"), os.path.join(run, "rounds.jsonl")
 target = target_from(conf)
-records = chain(rounds)
+records = checked(verify_chain, rounds)
 normal = score_rows(records)
 if not normal or normal[-1][1].get("round") != requested or normal[-1][1].get("verdict") != "REVERT":
     die("지정 라운드는 아직 복원되지 않은 마지막 REVERT여야 합니다.")
@@ -172,6 +150,6 @@ record = {"event": "revert", "round": requested, "restored_to": previous["round"
           "method": proof["method"], "tree_hash": proof["tree_hash"],
           "ts": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")}
 if "expected_tree_hash" in proof: record["expected_tree_hash"] = proof["expected_tree_hash"]
-append(rounds, records, record)
+checked(append_record, rounds, records, record)
 print(f"[{requested}] 복원 완료: 직전 채택본으로 되돌렸고 tree_hash 증거를 rounds.jsonl에 기록했습니다.")
 PY

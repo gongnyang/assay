@@ -30,7 +30,7 @@ $ reach-gate.sh .assay/run1
 
 $ bench-log.sh .assay/run1 R1 A1 4,2,3 "A1만 겨냥"
 [R1] min=2 sum=9/12 gate=FAIL verdict=REVERT (하락: A2 — 파레토 위반)
-→ exit 1 — 총점은 8에서 9로 올랐으나 A2가 3에서 2로 내려갔다. 파레토 위반이다.
+→ exit 1 — 총점은 9로 유지됐으나(A1 3→4, A3 불변) A2가 3에서 2로 내려갔다. 파레토 위반이다.
 
 $ bench-log.sh .assay/run1 R2 A2 4,3,3 "다음 라운드"
 !! 되돌리지 않은 R1 REVERT 뒤에는 bench-revert.sh를 먼저 실행해야 합니다.
@@ -61,10 +61,10 @@ bash ~/.claude/skills/assay/scripts/install-gate.sh ~/.claude/skills/assay
 ```
 
 ```console
-설치 게이트 통과: /home/you/.claude/skills/assay (회귀 8케이스)
+설치 게이트 통과: /home/you/.claude/skills/assay (회귀 16케이스)
 ```
 
-검사 항목은 macOS 압축 잔재, 스크립트의 실행 권한·shebang 결여, `SKILL.md` frontmatter와 그것이 선언한 파일의 실물 일치, `SKILL.md` 130행 상한, 금지 문자열 잔존, exit code 회귀 픽스처 8케이스다. exit 2가 나면 그 트리는 설치하지 않는다.
+검사 항목은 macOS 압축 잔재, 스크립트의 실행 권한·shebang 결여, `SKILL.md` frontmatter와 그것이 선언한 파일의 실물 일치, `SKILL.md` 130행 상한, 금지 문자열 잔존, exit code 회귀 픽스처 16케이스다. exit 2가 나면 그 트리는 설치하지 않는다.
 
 **3. 이 환경에서 접근 사다리의 어느 단이 살아 있는지 본다** (약 5초, 읽기 전용 probe)
 

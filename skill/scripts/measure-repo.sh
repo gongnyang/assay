@@ -9,8 +9,9 @@ set -euo pipefail
 need_python3
 [ $# -eq 2 ] || { echo "usage: $0 <repo-dir> <run-dir>" >&2; exit 64; }
 [ -d "$1" ] || { echo "레포 디렉터리 없음: $1" >&2; exit 2; }
-exec python3 - "$1" "$2" <<'PY'
-import hashlib, json, os, re, shutil, subprocess, sys, tempfile, urllib.error, urllib.request
+PYTHONPATH="$(cd -- "$(dirname -- "$0")" && pwd)${PYTHONPATH:+:$PYTHONPATH}" exec python3 - "$1" "$2" <<'PY'
+import hashlib, json, os, re, shutil, subprocess, sys, urllib.error, urllib.request
+from _pylib import atomic_write
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -92,17 +93,11 @@ def write_metrics(exit_code):
     try:
         output_dir.mkdir(parents=True, exist_ok=True)
         payload=("repo\tmetric\tstatus\tvalue\tdetail\n"+"".join("\t".join(item)+"\n" for item in rows)).encode("utf-8")
-        fd,temporary=tempfile.mkstemp(prefix=".measure-repo.",dir=output_dir)
-        with os.fdopen(fd, "wb") as output: output.write(payload)
-        os.replace(temporary,tsv_path)
+        atomic_write(tsv_path, payload, binary=True)
         proof={"instrument":"measure-repo.sh","argv":sys.argv[1:],"ts":datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00","Z"),"tsv_sha256":hashlib.sha256(payload).hexdigest(),"rows":len(rows)}
-        fd,temporary=tempfile.mkstemp(prefix=".measure-repo.prov.",dir=output_dir)
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as output:
-            json.dump(proof, output, ensure_ascii=False, separators=(",", ":")); output.write("\n")
-        os.replace(temporary,output_dir/"measure-repo.tsv.prov")
+        atomic_write(output_dir/"measure-repo.tsv.prov",
+                     json.dumps(proof, ensure_ascii=False, separators=(",", ":"))+"\n")
     except OSError as exc:
-        try: os.unlink(temporary)
-        except (OSError, UnboundLocalError): pass
         print(f"metrics 기록 실패: {exc}", file=sys.stderr)
         raise SystemExit(2)
     failed=gate_failures()

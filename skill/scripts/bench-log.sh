@@ -6,26 +6,14 @@ set -euo pipefail
 need_python3
 [ "$#" -ge 4 ] || usage_die "usage: $0 <run-dir> <round> <axis-targeted> <scores-csv> [note] [--simplify]"
 seal_verify "$1/gate.conf"
-exec python3 - "$@" <<'PY'
-import csv, datetime as dt, glob, hashlib, json, os, re, shutil, subprocess, sys, unicodedata
+PYTHONPATH="$(dirname "$0")${PYTHONPATH:+:$PYTHONPATH}" exec python3 - "$@" <<'PY'
+import csv, datetime as dt, glob, hashlib, json, os, re, shutil, subprocess, sys, unicodedata; from pathlib import Path; from _pylib import append_record, atomic_write, verify_chain
 A={"BASE","KEEP","SIMPLIFY"}
 def die(m,c=2): print("!! "+m,file=sys.stderr); raise SystemExit(c)
-def h(r): return hashlib.sha256(json.dumps({k:v for k,v in r.items() if k not in {"prev_hash","self_hash"}},ensure_ascii=False,sort_keys=True,separators=(",",":")).encode("utf-8")).hexdigest()
-def chain(p):
- try: src=open(p,encoding="utf-8")
- except OSError: die("rounds.jsonl 없음 — bench-init.sh 먼저.")
- out=[]; prev="GENESIS"
- for no,raw in enumerate(src,1):
-  if not raw.strip(): continue
-  try: r=json.loads(raw)
-  except json.JSONDecodeError as e: die(f"rounds.jsonl:{no}: JSON 오류: {e.msg}")
-  if not isinstance(r,dict) or r.get("prev_hash")!=prev or not isinstance(r.get("self_hash"),str) or r["self_hash"]!=h(r): die(f"rounds.jsonl:{no}: 해시 체인이 끊겼습니다.")
-  prev=r["self_hash"]; out.append(r)
- return out
-def append(p,rs,r):
- r["prev_hash"]=rs[-1]["self_hash"] if rs else "GENESIS"; r["self_hash"]=h(r)
- with open(p,"a",encoding="utf-8") as out: out.write(json.dumps(r,ensure_ascii=False,sort_keys=True,separators=(",",":"))+"\n")
- rs.append(r)
+def checked(f,*a):
+ try: return f(*a)
+ except (OSError,TypeError,ValueError) as e: die(str(e).replace(roundfile,"rounds.jsonl"))
+def write_scores(p,text): checked(lambda: atomic_write(p,Path(p).read_text(encoding="utf-8")+text))
 def conf(p):
  try: src=open(p,encoding="utf-8")
  except OSError: die("gate.conf 없음 — bench-init.sh 먼저.")
@@ -73,8 +61,7 @@ def scores_ok(p,rs,axes,rid):
  if shown!=expected: die("scores.tsv와 체인 검증된 rounds.jsonl 점수 행이 일치하지 않습니다.")
 def now(): return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00","Z")
 def state(target,run,rid):
- if not os.path.isdir(target): die("TARGET_DIR이 존재하지 않습니다.")
- target,run=os.path.realpath(target),os.path.realpath(run)
+ target,run=os.path.realpath(target),os.path.realpath(run); os.path.isdir(target) or die("TARGET_DIR이 존재하지 않습니다.")
  try: git=subprocess.run(["git","-C",target,"rev-parse","--show-toplevel"],text=True,capture_output=True)
  except FileNotFoundError:
   if os.path.exists(os.path.join(target,".git")): die("git이 없어 워킹트리 복원 증거를 기록할 수 없습니다.",3)
@@ -108,16 +95,15 @@ for x in args[4:]:
   simplify=True
  elif note: die("note는 하나만 지정할 수 있습니다.",64)
  else: note=x
-if any(any(c in x for c in "\t\r\n") for x in (rid,axis,note)): die("round·axis·note에 탭/개행을 사용할 수 없습니다.")
-run=os.path.abspath(runarg); gatefile,scoresfile,roundfile=(os.path.join(run,x) for x in ("gate.conf","scores.tsv","rounds.jsonl"))
+if any(any(c in x for c in "\t\r\n") for x in (rid,axis,note)) or not (run:=os.path.abspath(runarg)): die("round·axis·note에 탭/개행을 사용할 수 없습니다.")
+gatefile,scoresfile,roundfile=(os.path.join(run,x) for x in ("gate.conf","scores.tsv","rounds.jsonl"))
 if not os.path.isfile(scoresfile) or not os.path.isfile(roundfile): die("scores.tsv·rounds.jsonl이 필요합니다 — bench-init.sh 먼저.")
 axes,naxes,minreq,sumreq,maxscore,stalllimit,target=conf(gatefile)
 if axis!="-" and axis not in axes: die("axis-targeted가 봉인된 축에 없습니다.")
 try: scores=[int(x) for x in rawscores.split(",")]
 except ValueError: die("점수는 0~4 정수여야 합니다.")
 if len(scores)!=naxes or any(x<0 or x>maxscore for x in scores): die("축 개수 또는 점수 범위가 잘못되었습니다.")
-anchor=os.path.join(run,"anchors",rid+".md")
-if not os.path.isfile(anchor): die("앵커 파일 없음: "+anchor)
+if not os.path.isfile(anchor:=os.path.join(run,"anchors",rid+".md")): die("앵커 파일 없음: "+anchor)
 sid=re.compile(r"(?<![\w-])R-[A-Z]+(?![A-Z0-9-])"); fl=re.compile(r"(?:^|(?<![\w/]))(?:[^\s:]+/)*[^\s:]+\.(?:md|py|sh|mjs|js):[0-9]+"); quote=re.compile(r'"[^"\n]+"|“[^”\n]+”|「[^」\n]+」')
 lines=open(anchor,encoding="utf-8").read().splitlines(); missing=[]
 for a in axes:
@@ -125,7 +111,7 @@ for a in axes:
  if line is None: missing.append(a)
  elif not(sid.search(line) or "[실측]" in line or fl.search(line) or quote.search(line)): missing.append(a+"(무인용)")
 if missing: die("앵커 미비: "+" ".join(missing)+" — 인정 인용: R-A · [실측] · 유니코드파일.md:줄 · 직접 인용")
-records=chain(roundfile); scores_ok(scoresfile,records,axes,rid); normal=scored(records)
+records=checked(verify_chain,roundfile); scores_ok(scoresfile,records,axes,rid); normal=scored(records)
 if normal and normal[-1].get("verdict")=="REVERT":
  reject=normal[-1]; at=records.index(reject); restored=any(r.get("event")=="revert" and r.get("round")==reject["round"] and r.get("restored") is True and r.get("tree_hash") for r in records[at+1:])
  if not restored: die("되돌리지 않은 "+reject["round"]+" REVERT 뒤에는 bench-revert.sh를 먼저 실행해야 합니다.")
@@ -157,17 +143,16 @@ else:
    if change: evidence.append({"file":os.path.basename(p),"changes":change})
   if not evidence or up or not any(b<a for x in evidence for a,b in x["changes"].values()): die("--simplify에는 .tsv.prov 해시가 검증된 metrics TSV의 행수·파일수·의존성 수 감소 증거가 필요합니다.")
   verdict,delta,complexity="SIMPLIFY",f"sum 동일({oldsum}) + 복잡도 감소",{"before":oldround,"after":rid,"evidence":evidence}
-word="PASS" if minimum>=minreq and total>=sumreq else "FAIL"; record={"round":rid,"ts":now(),"axis":axis,"axes":",".join(axes),"scores":scores,"min":minimum,"sum":total,"max":naxes*maxscore,"gate":word,"verdict":verdict,"delta":delta,"note":note}
-if complexity: record["complexity"]=complexity
+word="PASS" if minimum>=minreq and total>=sumreq else "FAIL"; record={"round":rid,"ts":now(),"axis":axis,"axes":",".join(axes),"scores":scores,"min":minimum,"sum":total,"max":naxes*maxscore,"gate":word,"verdict":verdict,"delta":delta,"note":note,**({"complexity":complexity} if complexity else {})}
 if verdict in A: record["state"]=state(target,run,rid)
-with open(scoresfile,"a",encoding="utf-8",newline="") as out: out.write("\t".join(row(record,axes))+"\n")
-append(roundfile,records,record); stall=0
+write_scores(scoresfile,"\t".join(row(record,axes))+"\n")
+checked(append_record,roundfile,records,record); stall=0
 for r in scored(records): stall=stall+1 if r.get("verdict")=="REVERT" else 0 if r.get("verdict") in A else stall
 if stall>=stalllimit:
  stop={"event":"STALL","round":rid,"axis":axis,"scores":scores,"min":minimum,"sum":total,"gate":word,"verdict":"STALL","count":stall,"reason":"REVERT 연속으로 루프를 멈춘다","ts":now()}
- with open(scoresfile,"a",encoding="utf-8",newline="") as out: out.write("\t".join(stall_row(stop,axes))+"\n")
- append(roundfile,records,stop)
+ write_scores(scoresfile,"\t".join(stall_row(stop,axes))+"\n")
+ checked(append_record,roundfile,records,stop)
 print(f"[{rid}] min={minimum} sum={total}/{naxes*maxscore} gate={word} verdict={verdict} ({delta})")
-if stall>=stalllimit: print(f"!! STALL 기록: REVERT {stall}연속 — 루프를 멈추고 결과물이 아니라 루브릭을 의심하라.")
+stall>=stalllimit and print(f"!! STALL 기록: REVERT {stall}연속 — 루프를 멈추고 결과물이 아니라 루브릭을 의심하라.")
 raise SystemExit(1 if verdict=="REVERT" else 0)
 PY

@@ -30,7 +30,7 @@ $ reach-gate.sh .assay/run1
 
 $ bench-log.sh .assay/run1 R1 A1 4,2,3 "targeted A1"
 [R1] min=2 sum=9/12 gate=FAIL verdict=REVERT (하락: A2 — 파레토 위반)
-→ exit 1 — the total rose 8 to 9, but A2 fell 3 to 2. Pareto violation.
+→ exit 1 — the total held at 9 (A1 3→4, A3 unchanged), but A2 fell 3 to 2. Pareto violation.
 
 $ bench-log.sh .assay/run1 R2 A2 4,3,3 "next round"
 !! 되돌리지 않은 R1 REVERT 뒤에는 bench-revert.sh를 먼저 실행해야 합니다.
@@ -61,10 +61,10 @@ bash ~/.claude/skills/assay/scripts/install-gate.sh ~/.claude/skills/assay
 ```
 
 ```console
-설치 게이트 통과: /home/you/.claude/skills/assay (회귀 8케이스)
+설치 게이트 통과: /home/you/.claude/skills/assay (회귀 16케이스)
 ```
 
-Checks macOS archive residue, missing shebangs and exec bits, `SKILL.md` front matter against the files it declares, the 130-line ceiling on `SKILL.md`, banned strings, and 8 exit-code regression fixtures. Exit 2 means do not install this tree.
+Checks macOS archive residue, missing shebangs and exec bits, `SKILL.md` front matter against the files it declares, the 130-line ceiling on `SKILL.md`, banned strings, and 16 exit-code regression fixtures. Exit 2 means do not install this tree.
 
 **3. See which rungs of the access ladder work here** (~5 s, read-only network probes)
 

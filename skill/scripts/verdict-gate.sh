@@ -10,10 +10,11 @@ need_python3
 RUN=$1
 [ -f "$RUN/gate.conf" ] || die 2 "gate.conf가 없다 — bench-init.sh를 먼저 실행하라."
 seal_verify "$RUN/gate.conf"
-exec python3 - "$RUN" <<'PY'
-import csv, hashlib, json, os, re, sys, tempfile
+PYTHONPATH="$(dirname "$0")${PYTHONPATH:+:$PYTHONPATH}" exec python3 - "$RUN" <<'PY'
+import csv, hashlib, io, json, re, sys
 from pathlib import Path
 
+from _pylib import atomic_write, verify_reach_receipt
 run=Path(sys.argv[1])
 def die(code,msg): print("!! "+msg,file=sys.stderr); raise SystemExit(code)
 def read(path):
@@ -28,7 +29,6 @@ def one_json(path,label):
     if not isinstance(value,dict): die(2,f"{label}은 JSON 객체여야 한다")
     return value
 def cells(line): return [cell.strip() for cell in line.strip().strip("|").split("|")]
-
 gate_path=run/"gate.conf"; gate_text=read(gate_path); gate={}
 raw_axes=[]
 for line in gate_text.splitlines():
@@ -44,11 +44,8 @@ if (len(axes)!=n_axes or not 3<=len(axes)<=7 or len(axes)!=len(set(axes))
     die(2,"gate.conf 축 계약이 깨졌다")
 
 # 축1 영수증은 축2의 모든 판정 전에 현재 입력물과 대조한다.
-reach=one_json(run/"reach-gate.receipt","reach-gate.receipt")
-for field,path in (("anchors_sha256",run/"anchors.jsonl"),("reach_conf_sha256",run/"reach.conf")):
-    if not path.is_file(): die(2,"축1을 통과하지 않았다. reach-gate.sh를 먼저 실행하라")
-    if not isinstance(reach.get(field),str) or reach[field]!=sha(path): die(2,f"reach-gate.receipt와 현재 {path.name} 해시가 다르다")
-
+try: verify_reach_receipt(run, ("anchors_sha256", "reach_conf_sha256"))
+except (OSError, TypeError, ValueError) as exc: die(2, str(exc))
 required=[run/"scores.tsv",run/"rubric.md",run/"counterexample.md"]
 if any(not path.is_file() for path in required): die(2,"scores.tsv·rubric.md·counterexample.md가 모두 필요하다")
 try: score_rows=list(csv.reader(read(run/"scores.tsv").splitlines(),delimiter="\t"))
@@ -63,7 +60,6 @@ for no,row in enumerate(score_rows[1:],2):
     if all(re.fullmatch(r"[0-4]",value) for value in values) and row[verdict_col] in {"BASE","KEEP","SIMPLIFY"}:
         self_scores=list(map(int,values))
 if self_scores is None: die(2,"채택된 자기채점 행이 scores.tsv에 없다")
-
 rubric=read(run/"rubric.md"); lines=rubric.splitlines()
 heading=re.compile(r"^\s{0,3}#{1,6}[ \t]+(?:축[ \t]+)?([A-Za-z][A-Za-z0-9_-]*)(?=[ \t]|[.:—–-]|$)")
 starts=[(m.group(1),i) for i,line in enumerate(lines) if (m:=heading.match(line)) and m.group(1) in axes]
@@ -78,7 +74,6 @@ for axis in axes:
 qualitative_majority=qual_count*2>len(axes)
 if automatic and not any(path.is_file() and path.stat().st_size for path in (run/"metrics").glob("*.tsv")):
     die(2,"자동검증 축의 metrics/*.tsv 증거가 없다")
-
 # receipt의 worker 목록과 현존 CSV는 1:1이어야 한다. 목록 밖 CSV도 거부한다.
 g2=run/"g2"; receipt=one_json(g2/"receipt.json","g2/receipt.json")
 for field in ("ts","model","prompt_sha256","axes","workers"):
@@ -116,7 +111,6 @@ for index,axis in enumerate(axes):
     if any(abs(self_scores[index]-point)>=2 for point in theirs): die(1,f"{axis}의 자기·독립 채점 차이가 2점 이상이다 — 앵커를 보강해야 한다")
     adopted.append(min([self_scores[index],*theirs]))
 score_min,score_sum=min(adopted),sum(adopted)
-
 reverse={axis:[] for axis in axes}; reverse_tables=0
 for i,line in enumerate(lines):
     if "|" not in line: continue
@@ -133,7 +127,6 @@ if not reverse_tables: die(2,"rubric.md에 레퍼런스 역방향 채점 표가 
 for axis,values in reverse.items():
     if not any(value>=3 for value in values): die(1,f"{axis}는 어떤 레퍼런스도 3점에 도달하지 못한다")
 if len(set(adopted))==1: die(1,"최종 축 점수 분산이 0이다 — 총평 복사 의심")
-
 counter=read(run/"counterexample.md"); counter_scores={}
 for axis in axes:
     if match:=re.search(r"(?m)^\s*"+re.escape(axis)+r"\s*(?:점수)?\s*[:=]\s*([0-4])\b",counter): counter_scores[axis]=int(match.group(1))
@@ -152,7 +145,6 @@ if len(counter_scores)!=len(axes):
         if len(counter_scores)==len(axes): break
 if len(counter_scores)!=len(axes): die(2,"counterexample.md에 축별 0~4 반례 점수가 없다")
 if min(counter_scores.values())>=minimum and sum(counter_scores.values())>=required_sum: die(1,"반례가 봉인 판정식을 통과한다 — 루브릭 사각이다")
-
 anchors={}
 try:
     for no,raw in enumerate(read(run/"anchors.jsonl").splitlines(),1):
@@ -169,14 +161,12 @@ if score_min<minimum or score_sum<required_sum: die(1,"독립 채점의 보수 �
 
 # G2 행은 모든 검사와 봉인 판정이 성공한 뒤에만, 같은 G2 round를 교체해 기록한다.
 g2row=["G2","G2",*map(str,adopted),str(score_min),str(score_sum),"PASS","G2-ADOPTED","독립 채점의 낮은 점수 채택"]
+out=io.StringIO(); writer=csv.writer(out,delimiter="\t",lineterminator="\n"); writer.writerow(header)
+for row in score_rows[1:]:
+    if row[0]!="G2": writer.writerow(row)
+writer.writerow(g2row)
 try:
-    fd,tmp=tempfile.mkstemp(prefix=".scores.",dir=str(run),text=True)
-    with os.fdopen(fd,"w",encoding="utf-8",newline="") as out:
-        writer=csv.writer(out,delimiter="\t",lineterminator="\n"); writer.writerow(header)
-        for row in score_rows[1:]:
-            if row[0]!="G2": writer.writerow(row)
-        writer.writerow(g2row)
-    os.replace(tmp,run/"scores.tsv")
+    atomic_write(run/"scores.tsv",out.getvalue())
 except OSError as exc: die(2,f"G2 점수 기록 실패: {exc}")
 print("PASS")
 PY

@@ -198,23 +198,16 @@ receipt_args=("$G2/receipt.json" "$RECEIPT_MODEL" "$PROMPT_SHA256" "$AXES" "$WOR
 for index in "${!worker_ids[@]}"; do
   receipt_args+=("${worker_ids[$index]}" "${started[$index]}" "${ended[$index]}" "${hashes[$index]}" "${worker_exit[$index]}")
 done
-python3 - "${receipt_args[@]}" <<'PY'
-import json, os, sys, tempfile
+PYTHONPATH="$(dirname "$0")${PYTHONPATH:+:$PYTHONPATH}" python3 - "${receipt_args[@]}" <<'PY'
+import _pylib, json, sys
 from datetime import datetime, timezone
-from pathlib import Path
-receipt,model,prompt_sha256,axes,expected=sys.argv[1:6]
-expected=int(expected); fields=sys.argv[6:]
-if len(fields) != expected * 5:
-    print("!! G2 영수증 워커 필드 수가 맞지 않는다.", file=sys.stderr)
-    raise SystemExit(2)
+receipt,model,prompt_sha256,axes,expected=sys.argv[1:6]; expected=int(expected); fields=sys.argv[6:]
+if len(fields) != expected * 5: print("!! G2 영수증 워커 필드 수가 맞지 않는다.", file=sys.stderr); raise SystemExit(2)
 workers=[{"id":a,"started":b,"ended":c,"csv_sha256":d,"exit":int(e)} for a,b,c,d,e in (fields[n:n+5] for n in range(0,len(fields),5))]
 payload={"ts":datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00","Z"),"model":model,"prompt_sha256":prompt_sha256,"axes":axes,"workers":workers}
-path=Path(receipt)
-try:
-    fd, temporary = tempfile.mkstemp(prefix=".receipt.", dir=str(path.parent), text=True)
-    with os.fdopen(fd,"w",encoding="utf-8") as out: json.dump(payload,out,ensure_ascii=False,separators=(",",":")); out.write("\n")
-    os.replace(temporary, path)
-except OSError as exc:
+serialized=json.dumps(payload,ensure_ascii=False,separators=(",",":"))+"\n"
+try: _pylib.atomic_write(receipt, serialized)
+except Exception as exc:
     print(f"!! G2 영수증 기록 실패: {exc}", file=sys.stderr)
     raise SystemExit(2)
 PY

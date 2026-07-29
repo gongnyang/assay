@@ -9,6 +9,7 @@ REACH_INIT="$SCRIPTS/reach-init.sh"
 REACH_FANOUT="$SCRIPTS/reach-fanout.sh"
 REACH_FETCH="$SCRIPTS/reach-fetch.sh"
 REACH_GATE="$SCRIPTS/reach-gate.sh"
+REACH_REFUTE="$SCRIPTS/reach-refute.sh"
 BENCH_INIT="$SCRIPTS/bench-init.sh"
 RUBRIC_LINT="$SCRIPTS/rubric-lint.sh"
 BENCH_LOG="$SCRIPTS/bench-log.sh"
@@ -385,6 +386,40 @@ case_live_g2_verdict() {
   return "$status"
 }
 
+case_live_reach_refute() {
+  local mode base bin
+  mode=$1
+  base="$TMP/live-refute-$mode"
+  bin="$base/bin"
+  prepare_reach "$base" run
+  mkdir -p "$bin"
+  cat >"$bin/codex" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+out= prompt=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o) out=$2; shift 2 ;;
+    *) prompt=$1; shift ;;
+  esac
+done
+aid=$(printf '%s\n' "$prompt" | sed -n 's/^aid: //p')
+sid=$(printf '%s\n' "$prompt" | sed -n 's/^sid: //p')
+url=$(printf '%s\n' "$prompt" | sed -n 's/^원 URL(재열람 위치): //p')
+worker_id=$(printf '%s\n' "$prompt" | sed -n 's/^worker_id: //p')
+[ -n "$out" ] && [ -n "$aid" ] && [ -n "$sid" ] && [ -n "$url" ] && [ -n "$worker_id" ]
+if [ "${ASSAY_REFUTE_AID_MODE:-match}" = mismatch ]; then aid=R-Z#99; fi
+printf '{"aid":"%s","sid":"%s","worker_id":"%s","verdict":"CONFIRMED","refetched_url":"%s","refetched_sha256":"0000000000000000000000000000000000000000000000000000000000000000"}\n' \
+  "$aid" "$sid" "$worker_id" "$url" >"$out"
+SH
+  chmod +x "$bin/codex"
+  if [ "$mode" = mismatch ]; then
+    ASSAY_REFUTE_AID_MODE=mismatch PATH="$bin:$PATH" "$REACH_REFUTE" "$REACH_RUN" --workers 3
+  else
+    PATH="$bin:$PATH" "$REACH_REFUTE" "$REACH_RUN" --workers 3
+  fi
+}
+
 case_pareto_revert() {
   complete_happy_path "$TMP/pareto-revert" run
   write_round_anchor "$REACH_RUN" R1
@@ -408,7 +443,9 @@ copy_skill_fixture() {
 
 case_install_line_limit() {
   copy_skill_fixture line-limit
-  printf '%s\n' '# smoke fixture line' >>"$FIXTURE_SKILL/SKILL.md"
+  while [ "$(wc -l <"$FIXTURE_SKILL/SKILL.md")" -lt 131 ]; do
+    printf '%s\n' '# smoke fixture line' >>"$FIXTURE_SKILL/SKILL.md"
+  done
   "$FIXTURE_SKILL/scripts/install-gate.sh" "$FIXTURE_SKILL"
 }
 
@@ -463,12 +500,18 @@ run_case '원본 install-gate 통과' 0 "$INSTALL_GATE" "$SKILL_DIR"
 if [ "$SMOKE_LIVE" = 1 ]; then
   run_case 'live reach-fetch → reach-gate' 0 case_live_reach_fetch
   if command -v codex >/dev/null 2>&1; then
+    run_case 'live reach-refute aid 반환 계약' 0 case_live_reach_refute match
+    run_case 'live reach-refute aid 불일치 거부' 2 case_live_reach_refute mismatch
     run_case 'live g2-spawn → verdict-gate' 0 case_live_g2_verdict
   else
+    skip_case 'live reach-refute aid 반환 계약' 'Codex 워커가 필요한 단계'
+    skip_case 'live reach-refute aid 불일치 거부' 'Codex 워커가 필요한 단계'
     skip_case 'live g2-spawn → verdict-gate' 'Codex 워커가 필요한 단계'
   fi
 else
   skip_case 'live reach-fetch → reach-gate' 'SMOKE_LIVE=1에서만 네트워크 접근을 실행'
+  skip_case 'live reach-refute aid 반환 계약' 'SMOKE_LIVE=1 및 Codex 워커가 필요한 단계'
+  skip_case 'live reach-refute aid 불일치 거부' 'SMOKE_LIVE=1 및 Codex 워커가 필요한 단계'
   skip_case 'live g2-spawn → verdict-gate' 'SMOKE_LIVE=1 및 Codex 워커가 필요한 단계'
 fi
 

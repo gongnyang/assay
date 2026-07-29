@@ -16,14 +16,14 @@ RUN=$2
   echo "스킬 디렉터리 또는 SKILL.md 없음: $TARGET" >&2; exit 2;
 }
 
-exec python3 - "$RUN" "$TARGET" <<'PY'
+PYTHONPATH="$(cd -- "$(dirname -- "$0")" && pwd)${PYTHONPATH:+:$PYTHONPATH}" exec python3 - "$RUN" "$TARGET" <<'PY'
 import csv
 import hashlib
 import json
 import os
 import re
 import sys
-import tempfile
+from _pylib import atomic_write
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -119,19 +119,6 @@ def latest_round():
             latest = record["round"]
     return latest
 
-def atomic_bytes(path, payload, prefix):
-    try:
-        fd, temporary = tempfile.mkstemp(prefix=prefix, dir=path.parent)
-        with os.fdopen(fd, "wb") as output:
-            output.write(payload)
-        os.replace(temporary, path)
-    except OSError as exc:
-        try:
-            os.unlink(temporary)
-        except (OSError, UnboundLocalError):
-            pass
-        die(f"metrics 기록 실패: {exc}")
-
 gates = parse_gate()
 ordered = ["core_lines", "core_fences", "cmdish", "scripts", "md_files", "md_lines", "md_fences", "checks"]
 round_id = latest_round()
@@ -156,15 +143,20 @@ new_row = [round_id, str(target), *(str(values[k]) for k in ordered)]
 rows = [row for row in old_rows if row[:2] != new_row[:2]] + [new_row]
 body = "\n".join("\t".join(row) for row in [header, *rows]) + "\n"
 payload = body.encode("utf-8")
-atomic_bytes(tsv_path, payload, ".measure-skill.")
+try:
+    atomic_write(tsv_path, payload, binary=True)
+except OSError as exc:
+    die(f"metrics 기록 실패: {exc}")
 provenance = {
     "instrument": "measure-skill.sh", "argv": sys.argv[1:],
     "ts": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
     "tsv_sha256": hashlib.sha256(payload).hexdigest(), "rows": len(rows),
 }
-atomic_bytes(out_dir / "measure-skill.tsv.prov",
-             (json.dumps(provenance, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8"),
-             ".measure-skill.prov.")
+try:
+    atomic_write(out_dir / "measure-skill.tsv.prov",
+                 (json.dumps(provenance, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8"), binary=True)
+except OSError as exc:
+    die(f"metrics 기록 실패: {exc}")
 
 failed = []
 for metric, op, expected in gates:

@@ -15,14 +15,12 @@ need_python3
 
 seal_verify "$1/reach.conf"
 
-python3 - "$1" "$2" <<'PY'
-import hashlib
+PYTHONPATH="$(dirname "$0")${PYTHONPATH:+:$PYTHONPATH}" python3 - "$1" "$2" <<'PY'
 import json
-import os
+import _pylib, hashlib
 from pathlib import Path
 import re
 import sys
-import tempfile
 import unicodedata
 
 run_arg, axes_arg = sys.argv[1:]
@@ -58,20 +56,6 @@ def read_conf(path):
     if axes_min < 1 or axes_max < axes_min:
         fail("reach.conf의 AXES_MIN/MAX 범위가 잘못되었다")
     return values, axes_min, axes_max
-
-def atomic_write(path, text):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(text)
-        os.replace(temporary, path)
-    except OSError as exc:
-        try:
-            os.unlink(temporary)
-        except OSError:
-            pass
-        fail(f"브리프 파일을 쓸 수 없다: {path} ({exc})")
 
 if not run_arg:
     fail("run-dir가 비어 있다")
@@ -184,8 +168,14 @@ for _, axis_id, question, target in rows:
         "신뢰도 태깅은 R3의 단일 지점에서 확정한다. 수집 워커는 접근 사실과 스냅샷만 남긴다.",
         "",
     ))
-    atomic_write(run / "briefs" / f"{axis_id}.md", brief)
-atomic_write(destination, canonical_axes)
+    try:
+        _pylib.atomic_write(run / "briefs" / f"{axis_id}.md", brief)
+    except Exception as exc:
+        fail(f"브리프 파일을 쓸 수 없다: {run / 'briefs' / f'{axis_id}.md'} ({exc})")
+try:
+    _pylib.atomic_write(destination, canonical_axes)
+except Exception as exc:
+    fail(f"브리프 파일을 쓸 수 없다: {destination} ({exc})")
 PY
 
 echo "R1 팬아웃 완료: $1"

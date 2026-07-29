@@ -85,13 +85,13 @@ Rn
 `scores.tsv`는 사람이 빠르게 읽는 표다. 축 수는 gate.conf의 `AXES`에 고정되며, 라운드마다 정확히 한 행을 남긴다.
 
 ```text
-round  axis_targeted  A1  A2  A3  min  sum  gate  verdict  note
-R0     -              2   3   1   1    6    FAIL  BASE     베이스라인
-R1     A3             2   3   3   2    8    FAIL  KEEP     aid 보강
-R2     A1             1   3   3   1    7    FAIL  REVERT   A1 하락
+round  axis  A1  A2  A3  min  sum  gate  verdict  note
+R0     -     2   3   1   1    6    FAIL  BASE     베이스라인
+R1     A3    2   3   3   2    8    FAIL  KEEP     aid 보강
+R2     A1    1   3   3   1    7    FAIL  REVERT   A1 하락
 ```
 
-`rounds.jsonl`은 기계 판정 이력이다. 각 객체에는 `round`, `ts`, `axis`, 축별 `scores`, 직전 `prev`, `delta`, `min`, `sum`, `gate`, `verdict`, `anchors`, `diff`, `reason`을 남긴다. REVERT·크래시·SIMPLIFY를 빼지 않는다.
+`rounds.jsonl`은 기계 판정 이력이다. 각 객체에는 `round`, `ts`, `axis`, `axes`, 축별 점수 리스트 `scores`, `min`, `sum`, `max`, `gate`, `verdict`, `delta`, `note`, `prev_hash`, `self_hash`(+조건부 `complexity`/`state`)를 남긴다. REVERT·크래시·SIMPLIFY를 빼지 않는다.
 
 점수 숫자만 손으로 채워도 기록은 유효하지 않다. 자동검증은 TSV 셀과, 정성 축은 앵커 파일의 실물 인용과 연결되어야 한다. `bench-log.sh`는 누락을 exit 2로 막는다.
 

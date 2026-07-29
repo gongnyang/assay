@@ -13,15 +13,13 @@ need_python3
   usage_die "usage: $0 <run-dir> <question-file> <min-sources> <poc-max-pct>"
 }
 
-python3 - "$1" "$2" "$3" "$4" <<'PY'
+PYTHONPATH="$(dirname "$0")${PYTHONPATH:+:$PYTHONPATH}" python3 - "$1" "$2" "$3" "$4" <<'PY'
 import datetime as dt
-import hashlib
-import os
+import _pylib, hashlib
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import re
 import sys
-import tempfile
 import unicodedata
 
 run_arg, question_arg, min_raw, poc_raw = sys.argv[1:]
@@ -78,20 +76,6 @@ if not Decimal("0") <= poc_pct <= Decimal("100"):
     fail("poc-max-pct는 0 이상 100 이하여야 한다")
 poc_text = format(poc_pct.normalize(), "f") if poc_pct else "0"
 
-def atomic_write(path, data, *, binary=False):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    try:
-        with os.fdopen(fd, "wb" if binary else "w", encoding=None if binary else "utf-8", newline=None if binary else "\n") as handle:
-            handle.write(data)
-        os.replace(temporary, path)
-    except OSError as exc:
-        try:
-            os.unlink(temporary)
-        except OSError:
-            pass
-        fail(f"봉인 파일을 쓸 수 없다: {path} ({exc})")
-
 created_at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 question_sha = hashlib.sha256(raw_question).hexdigest()
 conf = "\n".join((
@@ -105,8 +89,14 @@ conf = "\n".join((
     "AXES_MAX=7",
     "",
 ))
-atomic_write(run / "question.md", raw_question, binary=True)
-atomic_write(conf_path, conf)
+try:
+    _pylib.atomic_write(run / "question.md", raw_question, binary=True)
+except Exception as exc:
+    fail(f"봉인 파일을 쓸 수 없다: {run / 'question.md'} ({exc})")
+try:
+    _pylib.atomic_write(conf_path, conf)
+except Exception as exc:
+    fail(f"봉인 파일을 쓸 수 없다: {conf_path} ({exc})")
 PY
 
 seal_write "$1/reach.conf"
