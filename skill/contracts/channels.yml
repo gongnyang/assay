@@ -1,0 +1,70 @@
+# 채널→접근 사다리 선언. 같은 인덱스의 ladder/backends/modes/…가 한 단계이며
+# 각 목록의 순서가 실행 정책이다. 플랫폼 주소와 probe 주소는 이 파일에만 둔다.
+# g2_model은 채널 목록만 읽는 기존 소비자와 호환되도록 모든 채널에 같은 값으로
+# 반복한 G2 모델 봉인값이다. 빈 값은 Codex 기본 모델(-m 생략)을 뜻한다.
+- name: github
+  g2_model: ""
+  match: ["github.com/*", "api.github.com/*", "raw.githubusercontent.com/*"]
+  backends: [gh-api, insane-search, webfetch, jina-reader, manual]
+  ladder: [L0, L1, L2, L3, L4]
+  modes: [command, command-json, http, prefix-http, manual]
+  commands: ["gh api {url}", "insane-search fetch --json {url}", "", "", ""]
+  url_prefixes: ["", "", "", "https://r.jina.ai/", ""]
+  probes: ["gh --version", "insane-search --help", "python3 -c 'import urllib.request'", "https://r.jina.ai/http://example.com", ""]
+  when: [always, challenge, always, always, always]
+  auth: none
+- name: arxiv
+  g2_model: ""
+  match: ["arxiv.org/*", "export.arxiv.org/*"]
+  backends: [arxiv, insane-search, webfetch, jina-reader, manual]
+  ladder: [L0, L1, L2, L3, L4]
+  modes: [http, command-json, http, prefix-http, manual]
+  commands: ["", "insane-search fetch --json {url}", "", "", ""]
+  url_prefixes: ["", "", "", "https://r.jina.ai/", ""]
+  probes: ["https://export.arxiv.org/api/query?search_query=all:assay&max_results=1", "insane-search --help", "python3 -c 'import urllib.request'", "https://r.jina.ai/http://example.com", ""]
+  when: [always, challenge, always, always, always]
+  auth: none
+- name: hackernews
+  g2_model: ""
+  match: ["news.ycombinator.com/*", "hacker-news.firebaseio.com/*"]
+  backends: [hn, insane-search, webfetch, jina-reader, manual]
+  ladder: [L0, L1, L2, L3, L4]
+  modes: [http, command-json, http, prefix-http, manual]
+  commands: ["", "insane-search fetch --json {url}", "", "", ""]
+  url_prefixes: ["", "", "", "https://r.jina.ai/", ""]
+  probes: ["https://hacker-news.firebaseio.com/v0/maxitem.json", "insane-search --help", "python3 -c 'import urllib.request'", "https://r.jina.ai/http://example.com", ""]
+  when: [always, challenge, always, always, always]
+  auth: none
+- name: bluesky
+  g2_model: ""
+  match: ["bsky.app/*", "public.api.bsky.app/*"]
+  backends: [bluesky, insane-search, webfetch, jina-reader, manual]
+  ladder: [L0, L1, L2, L3, L4]
+  modes: [http, command-json, http, prefix-http, manual]
+  commands: ["", "insane-search fetch --json {url}", "", "", ""]
+  url_prefixes: ["", "", "", "https://r.jina.ai/", ""]
+  probes: ["https://public.api.bsky.app/xrpc/app.bsky.feed.getTimeline?limit=1", "insane-search --help", "python3 -c 'import urllib.request'", "https://r.jina.ai/http://example.com", ""]
+  when: [always, challenge, always, always, always]
+  auth: none
+- name: rss
+  g2_model: ""
+  match: ["*.xml", "*.rss", "*/feed", "*/rss"]
+  backends: [rss, insane-search, webfetch, jina-reader, manual]
+  ladder: [L0, L1, L2, L3, L4]
+  modes: [http, command-json, http, prefix-http, manual]
+  commands: ["", "insane-search fetch --json {url}", "", "", ""]
+  url_prefixes: ["", "", "", "https://r.jina.ai/", ""]
+  probes: ["https://example.com/", "insane-search --help", "python3 -c 'import urllib.request'", "https://r.jina.ai/http://example.com", ""]
+  when: [always, challenge, always, always, always]
+  auth: none
+- name: web
+  g2_model: ""
+  match: "*"
+  backends: [insane-search, webfetch, jina-reader, manual]
+  ladder: [L1, L2, L3, L4]
+  modes: [command-json, http, prefix-http, manual]
+  commands: ["insane-search fetch --json {url}", "", "", ""]
+  url_prefixes: ["", "", "https://r.jina.ai/", ""]
+  probes: ["insane-search --help", "python3 -c 'import urllib.request'", "https://r.jina.ai/http://example.com", ""]
+  when: [challenge, always, always, always]
+  auth: none

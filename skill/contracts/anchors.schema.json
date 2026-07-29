@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assay.local/contracts/anchors.schema.json",
+  "title": "assay anchors.jsonl 행",
+  "description": "채점에 쓸 수 있는 원문 앵커 한 건. excerpt는 소스 스냅샷의 리터럴 부분문자열이어야 한다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "aid", "sid", "kind", "axis_hint", "active", "excerpt", "locator",
+    "measured", "measure", "claim_type", "confidence", "verdict",
+    "refuted_by", "captured_at"
+  ],
+  "properties": {
+    "aid": {"type": "string", "pattern": "^R-[A-Z]+#[0-9]{2}$"},
+    "sid": {"type": "string", "pattern": "^R-[A-Z]+$"},
+    "kind": {
+      "type": "string",
+      "enum": ["quote", "metric", "snippet", "crop", "dimension"]
+    },
+    "axis_hint": {"type": "string", "minLength": 1},
+    "active": {"type": "boolean"},
+    "excerpt": {"type": "string", "minLength": 1},
+    "locator": {"type": "string", "minLength": 1},
+    "measured": {"type": "boolean"},
+    "measure": {"type": "string"},
+    "claim_type": {
+      "type": "string",
+      "enum": ["verified", "vendor-claim", "executable"]
+    },
+    "confidence": {"type": "string", "enum": ["high", "med", "poc"]},
+    "verdict": {"type": "string", "enum": ["CONFIRMED", "UNVERIFIED", "REFUTED"]},
+    "refuted_by": {"type": "string"},
+    "captured_at": {"type": "string", "format": "date-time"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"measured": {"const": true}}, "required": ["measured"]},
+      "then": {"properties": {"measure": {"minLength": 1}}}
+    },
+    {
+      "if": {"properties": {"verdict": {"const": "REFUTED"}}, "required": ["verdict"]},
+      "then": {"properties": {"active": {"const": false}}}
+    },
+    {
+      "if": {"properties": {"verdict": {"const": "UNVERIFIED"}}, "required": ["verdict"]},
+      "then": {"properties": {"active": {"const": false}}}
+    }
+  ]
+}

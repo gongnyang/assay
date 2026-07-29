@@ -1,0 +1,15 @@
+# OS / editor cruft that the shipping gate rejects
+.DS_Store
+__MACOSX/
+._*
+Thumbs.db
+
+# Run directories are produced by the skill, not committed
+# (examples/end-to-end-run/.assay is the one deliberate exception — it is the recorded run)
+.assay/
+!examples/end-to-end-run/.assay/
+
+# Python / node scratch
+__pycache__/
+*.pyc
+node_modules/

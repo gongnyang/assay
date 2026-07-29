@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assay.local/contracts/sources.schema.json",
+  "title": "assay sources.jsonl 행",
+  "description": "접근 이력 한 건. status가 ok 또는 manual이면 스냅샷과 SHA-256이 필수다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sid", "worker_id", "axis", "url", "title", "channel", "ladder", "backend",
+    "fetched_at", "observed_at", "valid_at", "status", "attempts",
+    "ladder_stopped_at", "untried_ladder", "kind", "confidence", "access_note"
+  ],
+  "properties": {
+    "sid": {"type": "string", "pattern": "^R-[A-Z]+$"},
+    "worker_id": {"type": "string", "minLength": 1},
+    "axis": {"type": "string", "minLength": 1},
+    "url": {"type": "string", "format": "uri", "minLength": 1},
+    "title": {"type": "string", "minLength": 1},
+    "channel": {"type": "string", "minLength": 1},
+    "ladder": {"type": "string", "enum": ["L0", "L1", "L2", "L3", "L4"]},
+    "backend": {"type": "string", "minLength": 1},
+    "fetched_at": {"type": "string", "format": "date-time"},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "valid_at": {
+      "oneOf": [
+        {"type": "string", "format": "date"},
+        {"type": "string", "format": "date-time"}
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "manual", "blocked", "auth_required", "not_found", "timeout"]
+    },
+    "attempts": {"type": "integer", "minimum": 1},
+    "ladder_stopped_at": {"type": "integer", "minimum": 0, "maximum": 4},
+    "untried_ladder": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["L0", "L1", "L2", "L3", "L4"]},
+      "uniqueItems": true
+    },
+    "kind": {"type": "string", "enum": ["primary", "secondary", "marketing"]},
+    "confidence": {"type": "string", "enum": ["high", "med", "poc"]},
+    "snapshot": {"type": "string"},
+    "sha256": {"type": "string"},
+    "access_note": {"type": "string"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"enum": ["ok", "manual"]}}, "required": ["status"]},
+      "then": {
+        "required": ["snapshot", "sha256"],
+        "properties": {
+          "snapshot": {"minLength": 1},
+          "sha256": {"pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "manual"}}, "required": ["status"]},
+      "then": {"properties": {"confidence": {"enum": ["med", "poc"]}}}
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {"enum": ["blocked", "auth_required", "not_found", "timeout"]}
+        },
+        "required": ["status"]
+      },
+      "then": {"properties": {"untried_ladder": {"maxItems": 0}}}
+    }
+  ]
+}

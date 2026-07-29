@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Shell syntax check
+        run: |
+          for f in skill/scripts/*.sh; do bash -n "$f"; done
+
+      - name: Shipping gate (install-gate.sh)
+        run: bash skill/scripts/install-gate.sh skill
+
+      - name: Smoke tests
+        run: bash tests/smoke.sh
+
+  live-reach-fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Live Reach smoke (network only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SMOKE_LIVE: '1'
+        run: bash tests/smoke.sh
+
+      # G2 needs a logged-in Codex CLI and is intentionally a documented
+      # manual release check in skill/references/contracts.md, not CI.

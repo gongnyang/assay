@@ -1,0 +1,3 @@
+round	axis	A1	A2	A3	min	sum	gate	verdict	note
+R0	-	4	1	1	1	6	PASS	BASE	베이스라인
+G2	G2	3	0	0	0	3	PASS	G2-ADOPTED	독립 채점의 낮은 점수 채택

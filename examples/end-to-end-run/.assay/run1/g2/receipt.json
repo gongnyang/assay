@@ -1,0 +1,1 @@
+{"ts":"2026-07-29T17:14:44Z","model":"default","prompt_sha256":"cd958b737c8810f6e7107e859bdaeb4a2474ad69b68ccf0b361e1ffe889667fb","axes":"A1,A2,A3","workers":[{"id":"worker-1","started":"2026-07-29T17:14:34Z","ended":"2026-07-29T17:14:44Z","csv_sha256":"3babce931e9ac91c0f77dba8ef23123206ccc3cf7973926b07f8dfe5555a16d6","exit":0}]}

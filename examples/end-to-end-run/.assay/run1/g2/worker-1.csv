@@ -1,0 +1,4 @@
+axis_id,score,citation
+A1,3,"README.md:6 — 원문 인용 일부 제시"
+A2,0,"README.md:15 — 설정 파싱과 실행이 한 덩어리로 섞여 있다"
+A3,0,"README.md:18 — 설치 명령도 실행 예시도 없다"
