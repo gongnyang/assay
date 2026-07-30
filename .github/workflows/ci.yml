@@ -21,6 +21,9 @@ jobs:
         run: |
           for f in skill/scripts/*.sh; do bash -n "$f"; done
 
+      - name: README parity
+        run: bash tests/readme-parity.sh
+
       - name: Shipping gate (install-gate.sh)
         run: bash skill/scripts/install-gate.sh skill
 

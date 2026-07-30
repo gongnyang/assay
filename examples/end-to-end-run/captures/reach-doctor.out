@@ -1,0 +1,35 @@
+[ok] github: gh-api — probe 성공
+  L0 gh-api: ok — probe 성공
+  L1 insane-search: missing — insane-search 없음
+  L2 webfetch: ok — probe 성공
+  L3 jina-reader: ok — 읽기 probe 성공
+  L4 manual: warn — 사람 수동 입력 전용
+[ok] arxiv: arxiv — 읽기 probe 성공
+  L0 arxiv: ok — 읽기 probe 성공
+  L1 insane-search: missing — insane-search 없음
+  L2 webfetch: ok — probe 성공
+  L3 jina-reader: ok — 읽기 probe 성공
+  L4 manual: warn — 사람 수동 입력 전용
+[ok] hackernews: hn — 읽기 probe 성공
+  L0 hn: ok — 읽기 probe 성공
+  L1 insane-search: missing — insane-search 없음
+  L2 webfetch: ok — probe 성공
+  L3 jina-reader: ok — 읽기 probe 성공
+  L4 manual: warn — 사람 수동 입력 전용
+[ok] bluesky: webfetch — probe 성공
+  L0 bluesky: warn — HTTP 401 (클라이언트는 가용)
+  L1 insane-search: missing — insane-search 없음
+  L2 webfetch: ok — probe 성공
+  L3 jina-reader: ok — 읽기 probe 성공
+  L4 manual: warn — 사람 수동 입력 전용
+[ok] rss: rss — 읽기 probe 성공
+  L0 rss: ok — 읽기 probe 성공
+  L1 insane-search: missing — insane-search 없음
+  L2 webfetch: ok — probe 성공
+  L3 jina-reader: ok — 읽기 probe 성공
+  L4 manual: warn — 사람 수동 입력 전용
+[ok] web: webfetch — probe 성공
+  L1 insane-search: missing — insane-search 없음
+  L2 webfetch: ok — probe 성공
+  L3 jina-reader: ok — 읽기 probe 성공
+  L4 manual: warn — 사람 수동 입력 전용

@@ -102,6 +102,19 @@ BENCH_INIT="$SKILL_DIR/scripts/bench-init.sh"
 BENCH_LOG="$SKILL_DIR/scripts/bench-log.sh"
 MEASURE_SKILL="$SKILL_DIR/scripts/measure-skill.sh"
 [ -x "$BENCH_INIT" ] && [ -x "$BENCH_LOG" ] && [ -x "$MEASURE_SKILL" ] || die 2 "회귀 픽스처 대상 없음"
+# SKILL_DIR는 배포된 독립 트리일 수 있다. 그 부모를 레포라고 가정하지 않고,
+# 실행 중인 게이트가 속한 git 체크아웃에서만 README parity 검사기를 찾는다.
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || die 2 "게이트 스크립트 경로 확인 실패"
+README_PARITY=
+if REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null); then
+  if [ -f "$REPO_ROOT/tests/readme-parity.sh" ] && [ -f "$REPO_ROOT/README.md" ] && [ -f "$REPO_ROOT/README.ko.md" ]; then
+    README_PARITY="$REPO_ROOT/tests/readme-parity.sh"
+  else
+    printf '[SKIP] README parity: 체크아웃에 tests/readme-parity.sh 또는 README 쌍이 없다.\n' >&2
+  fi
+else
+  printf '[SKIP] README parity: 배포된 스킬은 레포 체크아웃 밖이라 검사기를 찾을 수 없다.\n' >&2
+fi
 TMP=$(mktemp -d) || die 2 "임시 디렉터리 생성 실패"
 trap 'rm -rf "$TMP"' EXIT
 TARGET="$TMP/target"
@@ -153,5 +166,35 @@ expect chain_mutate 0 python3 -c 'from pathlib import Path; import sys; p=Path(s
 anchors "$CHAIN_RUN" R1
 expect chain_tamper 2 "$BENCH_LOG" "$CHAIN_RUN" R1 A1 '3,3,3' tamper
 
+if [ -n "$README_PARITY" ]; then
+  PARITY_EN="$TMP/readme-parity.en.md"
+  PARITY_KO="$TMP/readme-parity.ko.md"
+  printf '%s\n' '# English' '' '## Evidence' '' 'The tree has 18 scripts.' '' '[proof](docs/gates.md)' '' '```bash' 'echo evidence' '```' >"$PARITY_EN"
+  printf '%s\n' '# 한국어' '' '## 증거' '' '이 트리에는 18개 스크립트가 있다.' '' '[근거](docs/gates.md)' '' '```bash' 'echo evidence' '```' >"$PARITY_KO"
+  if ! bash "$README_PARITY" "$PARITY_EN" "$PARITY_KO" >"$TMP/readme-parity-baseline.out" 2>"$TMP/readme-parity-baseline.err"; then
+    echo '!! README parity 정상 사본이 통과하지 못했다' >&2
+    sed -n '1,40p' "$TMP/readme-parity-baseline.err" >&2
+    fail=1
+  fi
+  CODE_DRIFT="$TMP/readme-parity-code-drift.md"
+  cp "$PARITY_EN" "$CODE_DRIFT"
+  python3 - "$CODE_DRIFT" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+path.write_text(path.read_text(encoding="utf-8").replace("echo evidence", "echo drift", 1), encoding="utf-8")
+PY
+  expect readme_code_fence_drift 2 bash "$README_PARITY" "$CODE_DRIFT" "$PARITY_KO"
+  NUMBER_DRIFT="$TMP/readme-parity-number-drift.md"
+  cp "$PARITY_EN" "$NUMBER_DRIFT"
+  python3 - "$NUMBER_DRIFT" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+path.write_text(path.read_text(encoding="utf-8").replace("18 scripts", "19 scripts", 1), encoding="utf-8")
+PY
+  expect readme_numeric_claim_drift 2 bash "$README_PARITY" "$NUMBER_DRIFT" "$PARITY_KO"
+fi
+
 [ "$fail" -eq 0 ] || exit 2
-echo "설치 게이트 통과: $SKILL_DIR (회귀 16케이스)"
+echo "설치 게이트 통과: $SKILL_DIR (회귀 18케이스)"
