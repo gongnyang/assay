@@ -1,22 +1,28 @@
 #!/usr/bin/env bash
-# measure-repo.sh — GitHub 레포의 전제 M1~M7과 채점 입력 M8~M18을 TSV로 계측한다.
+# measure-repo.sh — GitHub 레포의 전제 M1~M7과 채점 입력 M8~M23을 TSV로 계측한다.
 # 전제 위반을 점수로 희석하지 않는 것이 이 스크립트의 존재 이유다 — 위반이면 채점 자체를 멈춘다.
 #
-# usage: measure-repo.sh <repo-dir> <run-dir>
+# usage: measure-repo.sh <repo-dir> <run-dir> [--no-exec]
 # 종료코드: 0=전제 통과, 1=전제 위반, 2=계약 위반, 3=환경 미비, 64=사용법 오류
 set -euo pipefail
 . "$(dirname "$0")/_common.sh"
 need_python3
-[ $# -eq 2 ] || { echo "usage: $0 <repo-dir> <run-dir>" >&2; exit 64; }
+case "$#" in
+  2) NO_EXEC=0 ;;
+  3) [ "$3" = "--no-exec" ] || { echo "usage: $0 <repo-dir> <run-dir> [--no-exec]" >&2; exit 64; }; NO_EXEC=1 ;;
+  *) echo "usage: $0 <repo-dir> <run-dir> [--no-exec]" >&2; exit 64 ;;
+esac
 [ -d "$1" ] || { echo "레포 디렉터리 없음: $1" >&2; exit 2; }
-PYTHONPATH="$(cd -- "$(dirname -- "$0")" && pwd)${PYTHONPATH:+:$PYTHONPATH}" exec python3 - "$1" "$2" <<'PY'
-import hashlib, json, os, re, shutil, subprocess, sys, urllib.error, urllib.request
+if [ -n "${ASSAY_MEASURE_REPO_ACTIVE:-}" ]; then MEASURE_REPO_REENTRY=1; else MEASURE_REPO_REENTRY=0; fi
+ASSAY_MEASURE_REPO_ACTIVE=1 PYTHONPATH="$(cd -- "$(dirname -- "$0")" && pwd)${PYTHONPATH:+:$PYTHONPATH}" exec python3 - "$1" "$2" "$NO_EXEC" "$MEASURE_REPO_REENTRY" <<'PY'
+import hashlib, json, os, re, shlex, shutil, subprocess, sys, urllib.error, urllib.request
 from _pylib import atomic_write
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 root, run = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
+no_exec, reentry = sys.argv[3] == "1", sys.argv[4] == "1"
 readme = root/"README.md"
 rows, pre_fail, env_error = [], False, False
 def die(message, code=2): print(message, file=sys.stderr); raise SystemExit(code)
@@ -43,6 +49,105 @@ def gh_api(endpoint):
     proc = subprocess.run(["gh", "api", endpoint], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if proc.returncode: raise RuntimeError(proc.stderr.strip() or f"gh api 실패: {endpoint}")
     return json.loads(proc.stdout)
+def git_remote_slug():
+    try:
+        remote=subprocess.run(["git", "-C", str(root), "remote", "get-url", "origin"], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except FileNotFoundError:
+        return None, True
+    match=re.search(r"(?:[/:])([^/:]+)/([^/\s]+?)(?:\.git)?$", remote.stdout.strip())
+    return (f"{match.group(1)}/{match.group(2)}" if match else None), False
+def a6_value(**fields): return "; ".join(f"{key}={value}" for key,value in fields.items())
+def run_local(command): return subprocess.run(command, cwd=str(root), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def m19_install_gate():
+    gate, skill=root/"skill"/"scripts"/"install-gate.sh", root/"skill"
+    base={"gate":"skill/scripts/install-gate.sh", "skill_dir":"skill"}
+    if no_exec: row("M19", "INFO", a6_value(**base, executed=0, result="skipped", reason="no_exec", exit_code="skipped", passed=0, failed=0)); return
+    if reentry: row("M19", "INFO", a6_value(**base, executed=0, result="skipped", reason="reentry_guard", exit_code="skipped", passed=0, failed=0)); return
+    if not gate.is_file() or not skill.is_dir(): row("M19", "INFO", a6_value(**base, executed=0, result="unavailable", reason="install_gate_missing", exit_code="unavailable", passed=0, failed=0)); return
+    if not shutil.which("bash"): row("M19", "INFO", a6_value(**base, executed=0, result="unavailable", reason="bash_missing", exit_code="unavailable", passed=0, failed=0)); return
+    proc=run_local(["bash", str(gate), str(skill)]); passed=int(proc.returncode == 0)
+    row("M19", "INFO", a6_value(**base, executed=1, result="pass" if passed else "fail", exit_code=proc.returncode, passed=passed, failed=1-passed), clean((proc.stdout+proc.stderr).strip().splitlines()[-1] if (proc.stdout+proc.stderr).strip() else ""))
+def m20_smoke():
+    suite=root/"tests"/"smoke.sh"; base={"suite":"tests/smoke.sh", "suite_exists":int(suite.is_file())}
+    if no_exec: row("M20", "INFO", a6_value(**base, executed=0, result="skipped", reason="no_exec", exit_code="skipped", **{"pass":0,"fail":0,"skipped":0})); return
+    if reentry: row("M20", "INFO", a6_value(**base, executed=0, result="skipped", reason="reentry_guard", exit_code="skipped", **{"pass":0,"fail":0,"skipped":0})); return
+    if not suite.is_file(): row("M20", "INFO", a6_value(**base, executed=0, result="unavailable", reason="smoke_missing", exit_code="unavailable", **{"pass":0,"fail":0,"skipped":0})); return
+    if not shutil.which("bash"): row("M20", "INFO", a6_value(**base, executed=0, result="unavailable", reason="bash_missing", exit_code="unavailable", **{"pass":0,"fail":0,"skipped":0})); return
+    proc=run_local(["bash", str(suite)]); output=proc.stdout+proc.stderr; summary=re.search(r"^\[SUMMARY\]\s+pass=(\d+)\s+fail=(\d+)\s+SKIPPED=(\d+)\s*$", output, re.M)
+    passed,failed,skipped=(map(int, summary.groups()) if summary else (0, 0, 0)); ok=proc.returncode == 0 and failed == 0 and summary is not None
+    row("M20", "INFO", a6_value(**base, executed=1, result="pass" if ok else ("fail" if proc.returncode or failed else "unparsed"), exit_code=proc.returncode, **{"pass":passed,"fail":failed,"skipped":skipped}), clean(output.strip().splitlines()[-1] if output.strip() else ""))
+def m21_ci(slug_name):
+    if not slug_name: row("M21", "INFO", a6_value(repo="unavailable", result="unavailable", reason="remote_missing", conclusion="unavailable", timestamp="unavailable", available=0, success=0, failure=0)); return
+    if not shutil.which("gh"): row("M21", "INFO", a6_value(repo=slug_name, result="unavailable", reason="gh_missing", conclusion="unavailable", timestamp="unavailable", available=0, success=0, failure=0)); return
+    proc=run_local(["gh", "run", "list", "--repo", slug_name, "--limit", "1", "--json", "conclusion,updatedAt"])
+    if proc.returncode:
+        row("M21", "INFO", a6_value(repo=slug_name, result="unavailable", reason="gh_run_list_failed", conclusion="unavailable", timestamp="unavailable", available=0, success=0, failure=0), clean(proc.stderr.strip().splitlines()[-1] if proc.stderr.strip() else "")); return
+    try: runs=json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        runs=[]
+    if not runs:
+        row("M21", "INFO", a6_value(repo=slug_name, result="unavailable", reason="no_runs", conclusion="unavailable", timestamp="unavailable", available=0, success=0, failure=0)); return
+    conclusion=str(runs[0].get("conclusion") or "unknown").lower(); timestamp=str(runs[0].get("updatedAt") or "unavailable")
+    row("M21", "INFO", a6_value(repo=slug_name, result="measured", conclusion=conclusion, timestamp=timestamp, available=1, success=int(conclusion == "success"), failure=int(conclusion == "failure")))
+def code_fences(markdown): return re.findall(r"^```([^\n]*)\n(.*?)^```", markdown, re.M|re.S)
+def m22_readme_commands(markdown):
+    top={p.name for p in root.iterdir()} | {".", "skill", "scripts", "tests", "bin", "tools", "cmd", "src", "examples", ".github"}; refs=[]
+    for _, block in code_fences(markdown):
+        for raw in block.splitlines():
+            line=re.sub(r"^\s*[$]\s*", "", raw).strip()
+            if not line or line.startswith("#"): continue
+            try: tokens=shlex.split(line, comments=True)
+            except ValueError: tokens=line.split()
+            for pos, token in enumerate(tokens):
+                if token not in {"bash", "sh", "zsh", "dash"}: continue
+                for target in tokens[pos+1:]:
+                    if target.startswith("-"): continue
+                    refs.append(target); break
+            if tokens and (tokens[0].startswith("./") or tokens[0].startswith("../")): refs.append(tokens[0])
+    candidates=[]
+    for raw in refs:
+        token=raw.rstrip(";,:)")
+        if token.startswith(("~", "/", "$", "http://", "https://")): continue
+        first=token[2:].split("/",1)[0] if token.startswith("./") else token.split("/",1)[0]
+        if "/" not in token or first not in top: continue
+        path=(root/token).resolve()
+        if target_inside(path): candidates.append((token, path))
+    missing=[token for token,path in candidates if not path.is_file()]; non_executable=[token for token,path in candidates if path.is_file() and not os.access(path, os.X_OK)]
+    row("M22", "INFO", a6_value(commands=len(candidates), missing=len(missing), non_executable=len(non_executable), executable=len(candidates)-len(missing)-len(non_executable)), "; ".join((missing+non_executable)[:8]))
+def output_matches_source(output, source):
+    options=[output]
+    if output.startswith("!! "): options.append(output[3:])
+    for option in options:
+        if option in source: return True
+        if any(option[index:index+12] in source for index in range(max(0, len(option)-11))): return True
+    if re.fullmatch(r"\[(?:ok|warn|missing|broken)\] [^:]+: .+ — .+", output) and 'report["status"]' in source: return True
+    if re.fullmatch(r"L[0-9]+ .+: (?:ok|warn|missing|broken) — .+", output) and 'candidate["ladder"]' in source: return True
+    for line in source.splitlines():
+        for match in re.finditer(r"(?:[fFrRbBuU]{0,3})([\"'])(.*?)(?<!\\)\1", line):
+            template=match.group(2).replace(r"\n", "\n")
+            template=re.sub(r"\{[^{}]*\}|\$(?:\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9]+)", "\0", template)
+            parts=template.split("\0")
+            if max((len(part) for part in parts), default=0) < 6: continue
+            pattern=".*".join(re.escape(part) for part in parts)
+            if any(re.fullmatch(pattern, option) for option in options): return True
+    return False
+def m23_documented_output(doc_texts):
+    source="\n".join(read(p) for p in (root/"skill"/"scripts").glob("*") if p.is_file()) if (root/"skill"/"scripts").is_dir() else ""
+    blocks,outputs,missing=0,[],[]
+    for path, markdown in doc_texts:
+        for info, block in code_fences(markdown):
+            language=info.strip().split(maxsplit=1)
+            if not language or language[0].casefold() != "console": continue
+            blocks+=1
+            for raw in block.splitlines():
+                text=raw.strip()
+                if not text or re.match(r"^(?:[$#])\s*", text) or text.startswith(("→", "becomes ", "\"", "“")): continue
+                outputs.append((path, text))
+    for path,text in outputs:
+        if not output_matches_source(text, source): missing.append(f"{path.relative_to(root)}:{text}")
+    row("M23", "INFO", a6_value(console_blocks=blocks, output_lines=len(outputs), missing=len(missing), matched=len(outputs)-len(missing)), "; ".join(missing[:4]))
+def collect_a6(markdown, doc_texts, slug_name):
+    m19_install_gate(); m20_smoke(); m21_ci(slug_name); m22_readme_commands(markdown); m23_documented_output(doc_texts)
 def parse_gates():
     gate=run/"gate.conf"
     if not gate.exists(): return []
@@ -94,7 +199,7 @@ def write_metrics(exit_code):
         output_dir.mkdir(parents=True, exist_ok=True)
         payload=("repo\tmetric\tstatus\tvalue\tdetail\n"+"".join("\t".join(item)+"\n" for item in rows)).encode("utf-8")
         atomic_write(tsv_path, payload, binary=True)
-        proof={"instrument":"measure-repo.sh","argv":sys.argv[1:],"ts":datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00","Z"),"tsv_sha256":hashlib.sha256(payload).hexdigest(),"rows":len(rows)}
+        proof={"instrument":"measure-repo.sh","argv":sys.argv[1:3]+(["--no-exec"] if no_exec else []),"ts":datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00","Z"),"tsv_sha256":hashlib.sha256(payload).hexdigest(),"rows":len(rows)}
         atomic_write(output_dir/"measure-repo.tsv.prov",
                      json.dumps(proof, ensure_ascii=False, separators=(",", ":"))+"\n")
     except OSError as exc:
@@ -103,10 +208,12 @@ def write_metrics(exit_code):
     failed=gate_failures()
     if failed: print("봉인 임계 미달: "+", ".join(failed),file=sys.stderr)
     raise SystemExit(1 if exit_code == 1 or failed else exit_code)
-gates=parse_gates(); md=read(readme)
+gates=parse_gates(); md=read(readme); slug_name,git_missing=git_remote_slug()
+docs=[p for p in (root/"docs").rglob("*.md")] if (root/"docs").is_dir() else []; doc_texts=[(readme,md),*((p,read(p)) for p in docs)]
 if not md:
     row("M1", "FAIL", "README.md 없음 또는 읽기 실패", "P1")
     for num in range(2, 19): row(f"M{num}", "NA", "README 없음")
+    collect_a6(md, doc_texts, slug_name)
     write_metrics(1)
 hs = headings(md); h1 = [h for h in hs if h[0] == 1]
 if len(h1) == 1: row("M1", "PASS", f"h1_count={len(h1)}", "P1")
@@ -127,13 +234,7 @@ m4 = bool(re.search(r"\b(license|copyright|apache|mit|unlicense|gpl|bsd|mpl|isc)
 row("M4", "PASS" if m4 else "FAIL", f"license_notice={int(m4)}", "P4")
 pre_fail |= not m4
 license_files = [p for p in root.iterdir() if p.is_file() and p.name.upper().startswith("LICENSE")]
-slug_name = None
-try:
-    remote = subprocess.run(["git", "-C", str(root), "remote", "get-url", "origin"], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    match = re.search(r"(?:[/:])([^/:]+)/([^/\s]+?)(?:\.git)?$", remote.stdout.strip())
-    slug_name = f"{match.group(1)}/{match.group(2)}" if match else None
-except FileNotFoundError:
-    env_error = True
+if git_missing: env_error = True
 if not license_files or not slug_name:
     row("M5","FAIL",f"license_files={len(license_files)}; github_remote={int(bool(slug_name))}","P5"); pre_fail=True
 elif not shutil.which("gh"):
@@ -144,7 +245,7 @@ else:
         row("M5","PASS" if good else "FAIL",f"license_files={len(license_files)}; spdx_id={spdx}","P5"); pre_fail|=not good
     except RuntimeError as exc:
         env_error = True; row("M5", "ERROR", "github_api_unavailable", str(exc))
-docs=[p for p in (root/"docs").rglob("*.md")] if (root/"docs").is_dir() else []; doc_texts=[(readme,md),*((p,read(p)) for p in docs)]; external,anchors_bad,external_bad,external_error=set(),[],[],[]
+external,anchors_bad,external_bad,external_error=set(),[],[],[]
 for source, content in doc_texts:
     for url in markdown_urls(content):
         if url.startswith(("http://", "https://")): external.add(url)
@@ -211,5 +312,6 @@ row("M16", "INFO", f"files={len(changes)}; bytes={sum(p.stat().st_size for p in 
 matches17 = [f"{level}:{line}:{title}" for level, line, title in hs if re.search(r"Disclaimer|Limitations|Non-goals|Contributing|Scope|Telemetry|한계|비목표|면책|기여|범위", title, re.I)]
 row("M17", "INFO", f"boundary_headings={len(matches17)}", "; ".join(matches17))
 row("M18", "INFO", f"headings={len(hs)}", "; ".join(f"{level}:{line}:{title}" for level, line, title in hs))
+collect_a6(md, doc_texts, slug_name)
 write_metrics(1 if pre_fail else (3 if env_error else 0))
 PY
