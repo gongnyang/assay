@@ -15,7 +15,7 @@ Three words do most of the work in this document. **Reach** is the axis that goe
 <!-- DEMO -->
 ![assay — the gate refusing work](assets/assay-demo.gif)
 
-<sub>Ten seconds out of a 40-second showcase. Full video: [`assets/assay-showcase.mp4`](assets/assay-showcase.mp4) — every string on screen came out of this repository, and none of the output is staged.</sub>
+<sub>The first eleven seconds of a 55-second showcase. Full video: [`assets/assay-showcase.mp4`](assets/assay-showcase.mp4) — every string on screen came out of this repository, and none of the output is staged.</sub>
 
 Watching it refuse work is quicker than reading about it. The four blocks below are what `skill/scripts/` actually printed on a run with three sources. The scripts speak Korean; the exit code is the contract.
 

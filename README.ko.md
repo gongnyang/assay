@@ -15,7 +15,7 @@ assay는 그 문제 하나를 붙잡고 만든 Claude Code 스킬이다. 웹에�
 <!-- DEMO -->
 ![assay — 게이트가 작업을 거부한다](assets/assay-demo.gif)
 
-<sub>40초 쇼케이스 중 10초. 전체 영상은 [`assets/assay-showcase.mp4`](assets/assay-showcase.mp4) — 화면에 나오는 모든 문자열은 이 레포에서 그대로 가져온 것이고 연출한 출력은 없다.</sub>
+<sub>55초 쇼케이스 중 앞 11초. 전체 영상은 [`assets/assay-showcase.mp4`](assets/assay-showcase.mp4) — 화면에 나오는 모든 문자열은 이 레포에서 그대로 가져온 것이고 연출한 출력은 없다.</sub>
 
 설명보다 거부당하는 장면이 빠르다. 아래 네 블록은 소스 3건짜리 런에서 `skill/scripts/`가 실제로 뱉은 출력이다.
 
