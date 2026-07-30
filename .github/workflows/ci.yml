@@ -43,5 +43,13 @@ jobs:
           SMOKE_LIVE: '1'
         run: bash tests/smoke.sh
 
-      # G2 needs a logged-in Codex CLI and is intentionally a documented
-      # manual release check in skill/references/contracts.md, not CI.
+      - name: Report Codex-dependent coverage limitation
+        if: always()
+        run: |
+          {
+            echo '## Coverage limitation'
+            echo 'This CI does not guarantee 3 Codex-dependent cases because GitHub Actions does not provide a logged-in Codex CLI:'
+            echo '- live reach-refute aid 반환 계약'
+            echo '- live reach-refute aid 불일치 거부'
+            echo '- live g2-spawn → verdict-gate'
+          } >> "$GITHUB_STEP_SUMMARY"

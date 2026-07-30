@@ -27,6 +27,7 @@ mkdir -p "$TMP/output"
 passed=0
 failed=0
 skipped=0
+skipped_case_names=
 case_no=0
 
 run_case() {
@@ -55,6 +56,11 @@ skip_case() {
   local name=$1 reason=$2
   printf '[SKIP] %s: %s\n' "$name" "$reason"
   skipped=$((skipped + 1))
+  if [ -n "$skipped_case_names" ]; then
+    skipped_case_names="$skipped_case_names; $name"
+  else
+    skipped_case_names=$name
+  fi
 }
 
 prepare_reach() {
@@ -515,8 +521,13 @@ else
   skip_case 'live g2-spawn → verdict-gate' 'SMOKE_LIVE=1 및 Codex 워커가 필요한 단계'
 fi
 
-printf '[SUMMARY] pass=%s fail=%s SKIPPED=%s\n' "$passed" "$failed" "$skipped"
+skipped_ratio=$(awk -v skipped="$skipped" -v passed="$passed" 'BEGIN {
+  total = passed + skipped
+  if (total == 0) printf "0.000000"
+  else printf "%.6f", skipped / total
+}')
+printf '[SUMMARY] pass=%s fail=%s SKIPPED=%s skipped_ratio=%s\n' "$passed" "$failed" "$skipped" "$skipped_ratio"
 if [ "$skipped" -gt 0 ]; then
-  printf '%s\n' '이 실행은 라이브 케이스를 보증하지 않는다.'
+  printf '[WARNING] SKIPPED=%s: 이 실행은 다음 케이스를 보증하지 않는다: %s\n' "$skipped" "$skipped_case_names" >&2
 fi
 [ "$failed" -eq 0 ] || exit 1

@@ -87,11 +87,13 @@ PY
 fi
 if [ -n "$MODEL" ]; then RECEIPT_MODEL="declared:$MODEL"; else RECEIPT_MODEL="default"; fi
 PROMPT=$(mktemp /tmp/assay-g2-prompt.XXXXXX)
-trap 'rm -f -- "$PROMPT"' EXIT
-python3 - "$PROMPT" "$PROMPT_TEMPLATE" "$RUBRIC" "$SNAPSHOT" "$RUN" <<'PY'
+PROVIDED_FILES=$(mktemp /tmp/assay-g2-provided-files.XXXXXX)
+trap 'rm -f -- "$PROMPT" "$PROVIDED_FILES"' EXIT
+python3 - "$PROMPT" "$PROVIDED_FILES" "$PROMPT_TEMPLATE" "$RUBRIC" "$SNAPSHOT" "$RUN" <<'PY'
+import json
 import sys
 from pathlib import Path
-out, template, rubric, snapshot, run = map(Path, sys.argv[1:])
+out, provided_files, template, rubric, snapshot, run = map(Path, sys.argv[1:])
 def fail(message): print("!! "+message,file=sys.stderr); sys.exit(2)
 try:
     parts=[template.read_text(encoding="utf-8"),"\n## 루브릭\n",rubric.read_text(encoding="utf-8"),"\n## 채점 대상 스냅샷\n"]
@@ -100,11 +102,13 @@ except (OSError, UnicodeError) as exc:
 blocked = [run / "rounds.jsonl", run / "scores.tsv"] + list((run / "anchors").glob("R*.md"))
 blocked_paths = {path.resolve() for path in blocked if path.is_file()}
 def is_blocked(path): return path.resolve() in blocked_paths
-def include(path, label):
+included = []
+def include(path, label, source):
     try:
         data = path.read_bytes()
     except OSError as exc:
         fail(f"스냅샷 읽기 실패: {exc}")
+    included.append({"path": label, "source": source})
     if b"\0" in data:
         return f"\n### {label}\n[이진 파일은 채점 프롬프트에서 생략]\n"
     try:
@@ -112,13 +116,18 @@ def include(path, label):
     except UnicodeDecodeError:
         return f"\n### {label}\n[UTF-8이 아닌 파일은 채점 프롬프트에서 생략]\n"
 if snapshot.is_file() and not snapshot.is_symlink() and not is_blocked(snapshot):
-    parts.append(include(snapshot, snapshot.name))
+    parts.append(include(snapshot, snapshot.name, "snapshot"))
 elif snapshot.is_dir() and not snapshot.is_symlink():
     files=sorted((p.relative_to(snapshot).as_posix(),p) for p in snapshot.rglob("*") if p.is_file() and not p.is_symlink() and not is_blocked(p) and not any(x in {".git",".assay"} for x in p.relative_to(snapshot).parts))
     if not files: fail("대상 스냅샷에 읽을 일반 파일이 없다.")
-    parts.extend(include(path,label) for label,path in files)
+    parts.extend(include(path,label,"snapshot") for label,path in files)
 else:
     fail("대상 스냅샷은 일반 파일 또는 디렉터리여야 한다.")
+metrics = run / "metrics"
+metric_files = sorted(path for pattern in ("*.tsv", "*.tsv.prov") for path in metrics.glob(pattern) if path.is_file() and not path.is_symlink())
+if metric_files:
+    parts.append("\n## 현재 런 자동검증 근거\n이 블록에는 현재 런의 metrics/*.tsv와 metrics/*.tsv.prov만 제공된다. 이 파일들은 자동검증 축의 실제 계측 근거다.\n")
+    parts.extend(include(path, f"metrics/{path.name}", "current_run_metrics") for path in metric_files)
 parts.append("\n## 반환 형식\n설명·표·코드펜스 없이 첫 줄 axis_id,score,citation 헤더와 축별 세 열 CSV만 출력하라. 점수는 0~4 정수이고 인용은 비어 있으면 안 된다.\n")
 prompt = "".join(parts)
 for path in blocked:
@@ -130,6 +139,7 @@ for path in blocked:
         if forbidden.strip() and forbidden in prompt:
             fail(f"프롬프트 오염: {path.name} 내용이 조립 결과에 섞였다.")
 out.write_text(prompt, encoding="utf-8")
+provided_files.write_text(json.dumps(included, ensure_ascii=False, separators=(",", ":"))+"\n", encoding="utf-8")
 PY
 PROMPT_SHA256=$(sha256_of "$PROMPT")
 pids=(); workdirs=(); worker_ids=(); outputs=(); started=(); ended=(); worker_exit=(); errors=()
@@ -194,17 +204,27 @@ print(f"독립 채점 회수 완료: 워커 {len(paths)}개")
 PY
 hashes=()
 for output in "${outputs[@]}"; do hashes+=("$(sha256_of "$output")"); done
-receipt_args=("$G2/receipt.json" "$RECEIPT_MODEL" "$PROMPT_SHA256" "$AXES" "$WORKERS")
+receipt_args=("$G2/receipt.json" "$RECEIPT_MODEL" "$PROMPT_SHA256" "$AXES" "$WORKERS" "$PROVIDED_FILES")
 for index in "${!worker_ids[@]}"; do
   receipt_args+=("${worker_ids[$index]}" "${started[$index]}" "${ended[$index]}" "${hashes[$index]}" "${worker_exit[$index]}")
 done
 PYTHONPATH="$(dirname "$0")${PYTHONPATH:+:$PYTHONPATH}" python3 - "${receipt_args[@]}" <<'PY'
 import _pylib, json, sys
 from datetime import datetime, timezone
-receipt,model,prompt_sha256,axes,expected=sys.argv[1:6]; expected=int(expected); fields=sys.argv[6:]
+receipt,model,prompt_sha256,axes,expected,provided_path=sys.argv[1:7]; expected=int(expected); fields=sys.argv[7:]
 if len(fields) != expected * 5: print("!! G2 영수증 워커 필드 수가 맞지 않는다.", file=sys.stderr); raise SystemExit(2)
 workers=[{"id":a,"started":b,"ended":c,"csv_sha256":d,"exit":int(e)} for a,b,c,d,e in (fields[n:n+5] for n in range(0,len(fields),5))]
-payload={"ts":datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00","Z"),"model":model,"prompt_sha256":prompt_sha256,"axes":axes,"workers":workers}
+try:
+    provided_files=json.loads(open(provided_path,encoding="utf-8").read())
+except (OSError, json.JSONDecodeError) as exc:
+    print(f"!! G2 제공 파일 목록 읽기 실패: {exc}", file=sys.stderr)
+    raise SystemExit(2)
+if (not isinstance(provided_files,list) or any(not isinstance(item,dict) or set(item)!={"path","source"}
+        or not isinstance(item["path"],str) or not item["path"] or not isinstance(item["source"],str)
+        or item["source"] not in {"snapshot","current_run_metrics"} for item in provided_files)):
+    print("!! G2 제공 파일 목록 계약이 깨졌다.", file=sys.stderr)
+    raise SystemExit(2)
+payload={"ts":datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00","Z"),"model":model,"prompt_sha256":prompt_sha256,"axes":axes,"provided_files":provided_files,"workers":workers}
 serialized=json.dumps(payload,ensure_ascii=False,separators=(",",":"))+"\n"
 try: _pylib.atomic_write(receipt, serialized)
 except Exception as exc:

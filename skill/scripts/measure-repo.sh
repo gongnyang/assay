@@ -69,13 +69,16 @@ def m19_install_gate():
     row("M19", "INFO", a6_value(**base, executed=1, result="pass" if passed else "fail", exit_code=proc.returncode, passed=passed, failed=1-passed), clean((proc.stdout+proc.stderr).strip().splitlines()[-1] if (proc.stdout+proc.stderr).strip() else ""))
 def m20_smoke():
     suite=root/"tests"/"smoke.sh"; base={"suite":"tests/smoke.sh", "suite_exists":int(suite.is_file())}
-    if no_exec: row("M20", "INFO", a6_value(**base, executed=0, result="skipped", reason="no_exec", exit_code="skipped", **{"pass":0,"fail":0,"skipped":0})); return
-    if reentry: row("M20", "INFO", a6_value(**base, executed=0, result="skipped", reason="reentry_guard", exit_code="skipped", **{"pass":0,"fail":0,"skipped":0})); return
-    if not suite.is_file(): row("M20", "INFO", a6_value(**base, executed=0, result="unavailable", reason="smoke_missing", exit_code="unavailable", **{"pass":0,"fail":0,"skipped":0})); return
-    if not shutil.which("bash"): row("M20", "INFO", a6_value(**base, executed=0, result="unavailable", reason="bash_missing", exit_code="unavailable", **{"pass":0,"fail":0,"skipped":0})); return
-    proc=run_local(["bash", str(suite)]); output=proc.stdout+proc.stderr; summary=re.search(r"^\[SUMMARY\]\s+pass=(\d+)\s+fail=(\d+)\s+SKIPPED=(\d+)\s*$", output, re.M)
-    passed,failed,skipped=(map(int, summary.groups()) if summary else (0, 0, 0)); ok=proc.returncode == 0 and failed == 0 and summary is not None
-    row("M20", "INFO", a6_value(**base, executed=1, result="pass" if ok else ("fail" if proc.returncode or failed else "unparsed"), exit_code=proc.returncode, **{"pass":passed,"fail":failed,"skipped":skipped}), clean(output.strip().splitlines()[-1] if output.strip() else ""))
+    counts={"pass":0,"fail":0,"skipped":0,"skipped_ratio":"0.000000"}
+    if no_exec: row("M20", "INFO", a6_value(**base, executed=0, result="skipped", reason="no_exec", exit_code="skipped", **counts)); return
+    if reentry: row("M20", "INFO", a6_value(**base, executed=0, result="skipped", reason="reentry_guard", exit_code="skipped", **counts)); return
+    if not suite.is_file(): row("M20", "INFO", a6_value(**base, executed=0, result="unavailable", reason="smoke_missing", exit_code="unavailable", **counts)); return
+    if not shutil.which("bash"): row("M20", "INFO", a6_value(**base, executed=0, result="unavailable", reason="bash_missing", exit_code="unavailable", **counts)); return
+    proc=run_local(["bash", str(suite)]); output=proc.stdout+proc.stderr; summary=re.search(r"^\[SUMMARY\]\s+pass=(\d+)\s+fail=(\d+)\s+SKIPPED=(\d+)\s+skipped_ratio=(\d+(?:\.\d+)?)\s*$", output, re.M)
+    passed,failed,skipped=(map(int, summary.groups()[:3]) if summary else (0, 0, 0)); denominator=passed+skipped
+    counts={"pass":passed,"fail":failed,"skipped":skipped,"skipped_ratio":format(Decimal(skipped)/Decimal(denominator), ".6f") if denominator else "0.000000"}
+    result="fail" if proc.returncode or failed else ("unparsed" if summary is None else ("pass_with_skips" if skipped else "pass"))
+    row("M20", "INFO", a6_value(**base, executed=1, result=result, exit_code=proc.returncode, **counts), clean(output.strip().splitlines()[-1] if output.strip() else ""))
 def m21_ci(slug_name):
     if not slug_name: row("M21", "INFO", a6_value(repo="unavailable", result="unavailable", reason="remote_missing", conclusion="unavailable", timestamp="unavailable", available=0, success=0, failure=0)); return
     if not shutil.which("gh"): row("M21", "INFO", a6_value(repo=slug_name, result="unavailable", reason="gh_missing", conclusion="unavailable", timestamp="unavailable", available=0, success=0, failure=0)); return
