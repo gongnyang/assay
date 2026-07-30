@@ -2,7 +2,7 @@
 
 **assay is a Claude Code skill that settles one question in two halves joined by exactly two files: *Reach* walks an access ladder to pull primary sources off the web, records every page it reaches in `sources.jsonl` as a local snapshot with its SHA-256, and lets into `anchors.jsonl` only those quotations that are literal substrings of that snapshot; *Bench* scores nothing outside those two files, promotes the surviving anchors into a sealed rubric, and improves the target only until that rubric passes — each step enforced by an exit code, not by an agent's self-report.**
 
-[![CI](https://github.com/kimsh-1/assay/actions/workflows/ci.yml/badge.svg)](https://github.com/kimsh-1/assay/actions/workflows/ci.yml)
+[![CI](https://github.com/gongnyang/assay/actions/workflows/ci.yml/badge.svg)](https://github.com/gongnyang/assay/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [한국어 문서 — README.ko.md](README.ko.md)
 
@@ -68,7 +68,7 @@ Four commands, about ten seconds of wall clock, no service to sign up for. The o
 **1. Install the skill** (~5 s)
 
 ```bash
-git clone https://github.com/kimsh-1/assay.git
+git clone https://github.com/gongnyang/assay.git
 cp -r assay/skill ~/.claude/skills/assay
 ```
 

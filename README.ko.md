@@ -2,7 +2,7 @@
 
 **assay는 질문 하나를 파일 두 장으로만 만나는 두 축으로 처리하는 Claude Code 스킬이다 — *Reach*는 접근 사다리를 타고 웹에서 1차 출처를 뚫어 와 닿은 페이지를 전부 로컬 스냅샷으로 저장해 SHA-256과 함께 `sources.jsonl`에 기록하고 그 스냅샷에 리터럴로 존재하는 인용만 `anchors.jsonl`에 올리며, *Bench*는 그 두 파일 밖의 것을 채점 재료로 인정하지 않은 채 살아남은 앵커를 봉인된 루브릭으로 승격시킨 뒤 그 루브릭이 통과시킬 때까지만 대상을 고치고, 각 단계의 판정은 에이전트의 자기신고가 아니라 exit code가 내린다.**
 
-[![CI](https://github.com/kimsh-1/assay/actions/workflows/ci.yml/badge.svg)](https://github.com/kimsh-1/assay/actions/workflows/ci.yml)
+[![CI](https://github.com/gongnyang/assay/actions/workflows/ci.yml/badge.svg)](https://github.com/gongnyang/assay/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [The English edition — README.md](README.md)
 
@@ -68,7 +68,7 @@ exit code는 15개 스크립트 전부 동일하다. `0` 통과, `1` 판정 실�
 **1. 스킬 설치** (약 5초)
 
 ```bash
-git clone https://github.com/kimsh-1/assay.git
+git clone https://github.com/gongnyang/assay.git
 cp -r assay/skill ~/.claude/skills/assay
 ```
 
