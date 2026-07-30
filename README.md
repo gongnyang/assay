@@ -1,13 +1,10 @@
 # assay
 
+**assay is a Claude Code skill that settles one question in two halves joined by exactly two files: *Reach* walks an access ladder to pull primary sources off the web, records every page it reaches in `sources.jsonl` as a local snapshot with its SHA-256, and lets into `anchors.jsonl` only those quotations that are literal substrings of that snapshot; *Bench* scores nothing outside those two files, promotes the surviving anchors into a sealed rubric, and improves the target only until that rubric passes — each step enforced by an exit code, not by an agent's self-report.**
+
 [![CI](https://github.com/kimsh-1/assay/actions/workflows/ci.yml/badge.svg)](https://github.com/kimsh-1/assay/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-
-**assay is a Claude Code skill that pulls primary-source evidence off the web, refuses any quotation that is not a literal substring of a stored snapshot, promotes the surviving anchors into a sealed rubric, and then improves the target only until that rubric passes.** Every step is enforced by an exit code, not by an agent's self-report.
-
-Two axes, joined by exactly two files: **Reach** (access, collection, adversarial re-verification) produces `sources.jsonl` and `anchors.jsonl`; **Bench** (rubric promotion, improvement loop, verdict) refuses to score anything outside those two files.
-
-한국어 문서는 [README.ko.md](README.ko.md).
+[한국어 문서 — README.ko.md](README.ko.md)
 
 <!-- DEMO -->
 ![assay — the gate refusing work](assets/assay-demo.gif)
@@ -38,6 +35,29 @@ $ bench-log.sh .assay/run1 R2 A2 4,3,3 "next round"
 ```
 
 The scripts speak Korean; the exit codes are the contract. `0` pass, `1` verdict failure, `2` contract violation, `3` missing environment, `64` usage error — identical across all 15 entry points.
+
+## Documentation quick links
+
+Each destination is marked with what kind of thing it is: *(here)* is a section further down this file, *(file)* is a separate document in this repository, *(canonical)* is somebody else's authoritative text that we link to instead of restating.
+
+- **Install it and run it once**
+  - [Quick start — four commands, about ten seconds of wall clock](#quick-start) *(here)*
+  - [examples/README.md — one complete run captured verbatim, artifact by artifact](examples/README.md) *(file)*
+  - [Claude Code skills — the official spec for `~/.claude/skills/` and `SKILL.md` front matter](https://docs.claude.com/en/docs/claude-code/skills) *(canonical)*
+- **Understand the two axes before trusting a verdict**
+  - [Architecture — the R0→G3 flowchart and the receipt that joins Reach to Bench](#architecture) *(here)*
+  - [docs/how-it-works.md — one run traced end to end, with who acts at each step](docs/how-it-works.md) *(file)*
+  - [skill/SKILL.md — the declaration layer the agent loads on every trigger (Korean)](skill/SKILL.md) *(file)*
+- **Look up the refusal you just hit**
+  - [docs/gates.md — what each of the 15 scripts physically refuses, and with which code](docs/gates.md) *(file)*
+  - [Global exit codes — `0` / `1` / `2` / `3` / `64`, identical at every entry point](docs/gates.md#global-exit-codes) *(file, section)*
+  - [skill/references/contracts.md — the JSONL and TSV field contracts a gate reads (Korean)](skill/references/contracts.md) *(file)*
+- **Decide whether to depend on this**
+  - [Limitations, non-goals and scope — what it does not do, and where to take the rest](#limitations-non-goals-and-scope) *(here)*
+  - [docs/genealogy.md — every inherited claim marked CONFIRMED, UNVERIFIED or REFUTED](docs/genealogy.md) *(file)*
+  - [karpathy/autoresearch — the single-metric loop this one inherits, in its author's own words](https://github.com/karpathy/autoresearch) *(canonical)*
+
+The annotated catalogue — all five repository documents and all six on-demand `skill/references/` files, each with the moment it is meant to be opened — is in [Documentation](#documentation) below.
 
 ## Quick start
 

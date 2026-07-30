@@ -1,13 +1,10 @@
 # assay
 
+**assay는 질문 하나를 파일 두 장으로만 만나는 두 축으로 처리하는 Claude Code 스킬이다 — *Reach*는 접근 사다리를 타고 웹에서 1차 출처를 뚫어 와 닿은 페이지를 전부 로컬 스냅샷으로 저장해 SHA-256과 함께 `sources.jsonl`에 기록하고 그 스냅샷에 리터럴로 존재하는 인용만 `anchors.jsonl`에 올리며, *Bench*는 그 두 파일 밖의 것을 채점 재료로 인정하지 않은 채 살아남은 앵커를 봉인된 루브릭으로 승격시킨 뒤 그 루브릭이 통과시킬 때까지만 대상을 고치고, 각 단계의 판정은 에이전트의 자기신고가 아니라 exit code가 내린다.**
+
 [![CI](https://github.com/kimsh-1/assay/actions/workflows/ci.yml/badge.svg)](https://github.com/kimsh-1/assay/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-
-**assay는 웹에서 1차 출처를 뚫어 와 스냅샷에 리터럴로 존재하지 않는 인용을 전부 거부하고, 살아남은 앵커를 채점 기준으로 승격시킨 뒤, 그 기준이 통과시킬 때까지만 대상을 고치는 Claude Code 스킬이다.** 각 단계의 판정은 에이전트의 자기신고가 아니라 exit code가 내린다.
-
-축은 둘이고 둘은 파일 두 장으로만 만난다. **Reach**(접근·수집·적대 재검증)는 `sources.jsonl`과 `anchors.jsonl`을 생산하고, **Bench**(루브릭 승격·개선 루프·판정)는 그 두 파일 밖의 것을 채점 재료로 인정하지 않는다.
-
-The English edition is [README.md](README.md).
+[The English edition — README.md](README.md)
 
 <!-- DEMO -->
 ![assay — 게이트가 작업을 거부한다](assets/assay-demo.gif)
@@ -38,6 +35,29 @@ $ bench-log.sh .assay/run1 R2 A2 4,3,3 "다음 라운드"
 ```
 
 exit code는 15개 스크립트 전부 동일하다. `0` 통과, `1` 판정 실패, `2` 계약 위반, `3` 환경 미비, `64` 사용법 오류.
+
+## 문서 바로가기
+
+목적지마다 종류를 표기했다. *(이 문서)* 는 아래쪽 섹션, *(파일)* 은 이 레포의 별도 문서, *(정본)* 은 우리가 다시 쓰지 않고 링크로 넘기는 외부 원본이다.
+
+- **설치하고 한 번 돌려본다**
+  - [빠른 시작 — 명령 네 개, 벽시계로 약 10초](#빠른-시작) *(이 문서)*
+  - [examples/README.md — 실제 런 한 건을 산출물 단위로 그대로 기록한 것](examples/README.md) *(파일)*
+  - [Claude Code skills — `~/.claude/skills/`와 `SKILL.md` front matter의 공식 규격](https://docs.claude.com/en/docs/claude-code/skills) *(정본)*
+- **판정을 믿기 전에 두 축을 이해한다**
+  - [아키텍처 — R0→G3 흐름도와 두 축을 잇는 receipt](#아키텍처) *(이 문서)*
+  - [docs/how-it-works.md — 런 하나를 끝까지 추적하고 각 단계의 행위자를 표시한 문서 (영어)](docs/how-it-works.md) *(파일)*
+  - [skill/SKILL.md — 트리거마다 로드되는 선언 계층](skill/SKILL.md) *(파일)*
+- **방금 맞은 거부를 찾아본다**
+  - [docs/gates.md — 15개 스크립트가 각각 무엇을 물리적으로 거부하는지 (영어)](docs/gates.md) *(파일)*
+  - [Global exit codes — `0`/`1`/`2`/`3`/`64`, 모든 진입점에서 동일](docs/gates.md#global-exit-codes) *(파일의 특정 절)*
+  - [skill/references/contracts.md — 게이트가 읽는 JSONL·TSV 필드 계약](skill/references/contracts.md) *(파일)*
+- **의존할지 말지 판단한다**
+  - [한계, 비목표, 범위 — 하지 않는 일과 나머지를 넘길 곳](#한계-비목표-범위) *(이 문서)*
+  - [docs/genealogy.md — 물려받은 주장마다 CONFIRMED·UNVERIFIED·REFUTED 표기 (영어)](docs/genealogy.md) *(파일)*
+  - [karpathy/autoresearch — 이 루프가 물려받은 단일 지표 루프의 원문](https://github.com/karpathy/autoresearch) *(정본)*
+
+레포 문서 5종과 `skill/references/` 6종을 "언제 여는 문서인지"까지 붙여 정리한 전체 목록은 아래 [문서](#문서)에 있다.
 
 ## 빠른 시작
 
