@@ -33,7 +33,7 @@ If your change alters an exit code, the meaning of an exit code, a field name in
 
 - **Quotations are literal.** Never tidy a quoted excerpt, translate it, or replace an omitted middle with an ellipsis. This is the same rule the skill enforces on its own evidence, and it applies to prose written about the skill.
 - **A claim you cannot re-open is not a claim.** If you cannot reach the source, mark it UNVERIFIED and leave it visible rather than removing the inconvenience.
-- **Korean documents are written in Korean**, in a technical written register, not translated from English. English documents are written in plain technical English. Neither is a rendering of the other; `README.md` and `README.ko.md` are two originals covering the same ground.
+- **Korean documents are written in Korean**, in a technical written register, not translated from English. English documents are written in plain technical English. Neither is a rendering of the other; `README.md` (Korean, the canonical entry point) and `README.en.md` are two originals covering the same ground.
 
 ## Pull requests
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# README.md와 README.ko.md의 두 원본이 같은 구조와 증거를 다루는지 검사한다.
+# README.md(한국어 정본)와 README.en.md의 두 원본이 같은 구조와 증거를 다루는지 검사한다.
 # 산문은 두 언어에서 독립적으로 쓴다. 따라서 펜스 밖 설명·주석 문장은 비교하지
 # 않는다. 반대로 펜스 안은 명령과 실제 출력이므로 줄바꿈까지 바이트 동일해야 한다.
 # usage: readme-parity.sh [<english-readme> <korean-readme>]
@@ -9,8 +9,8 @@ set -uo pipefail
 case "$#" in
   0)
     SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd) || exit 2
-    ENGLISH_README="$SCRIPT_DIR/../README.md"
-    KOREAN_README="$SCRIPT_DIR/../README.ko.md"
+    ENGLISH_README="$SCRIPT_DIR/../README.en.md"
+    KOREAN_README="$SCRIPT_DIR/../README.md"
     ;;
   2)
     ENGLISH_README=$1
@@ -81,7 +81,7 @@ def relative_target(raw_target):
         return None
     while target.startswith("./"):
         target = target[2:]
-    if target in {"README.md", "README.ko.md"}:
+    if target in {"README.md", "README.en.md"}:
         return None
     return target
 

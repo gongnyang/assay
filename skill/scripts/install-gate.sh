@@ -107,7 +107,7 @@ MEASURE_SKILL="$SKILL_DIR/scripts/measure-skill.sh"
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || die 2 "게이트 스크립트 경로 확인 실패"
 README_PARITY=
 if REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null); then
-  if [ -f "$REPO_ROOT/tests/readme-parity.sh" ] && [ -f "$REPO_ROOT/README.md" ] && [ -f "$REPO_ROOT/README.ko.md" ]; then
+  if [ -f "$REPO_ROOT/tests/readme-parity.sh" ] && [ -f "$REPO_ROOT/README.md" ] && [ -f "$REPO_ROOT/README.en.md" ]; then
     README_PARITY="$REPO_ROOT/tests/readme-parity.sh"
   else
     printf '[SKIP] README parity: 체크아웃에 tests/readme-parity.sh 또는 README 쌍이 없다.\n' >&2
