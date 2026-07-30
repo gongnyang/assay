@@ -41,12 +41,26 @@ for base, dirs, files in os.walk(root, followlinks=False):
         try: data = path.read_bytes()
         except OSError as exc: errors.append(f"읽기 실패: {path.relative_to(root)}: {exc}"); continue
         if needle in data: errors.append(f"유령 부모 인용: {path.relative_to(root)}")
+# WSL의 /mnt 마운트는 모든 파일을 777로 보여 os.access 검사를 무의미하게 만든다.
+# git 인덱스의 모드가 배포 시점의 진실이므로 레포 안이면 그쪽도 본다(레포 밖이면 빈 dict).
+git_modes = {}
+try:
+    import subprocess
+    out = subprocess.run(["git", "-C", str(root), "ls-files", "-s", "scripts"],
+                         capture_output=True, text=True, timeout=10)
+    if out.returncode == 0:
+        for line in out.stdout.splitlines():
+            parts = line.split(maxsplit=3)
+            if len(parts) == 4: git_modes[os.path.basename(parts[3])] = parts[0]
+except Exception: git_modes = {}
 scripts = root / "scripts"; common = scripts / "_common.sh"
 if not common.is_file(): errors.append("공통 유틸 없음: scripts/_common.sh")
 for script in sorted(scripts.glob("*.sh")):
     try: content = script.read_text(encoding="utf-8"); data = content.encode("utf-8")
     except (OSError, UnicodeDecodeError) as exc: errors.append(f"스크립트 읽기 실패: {script.relative_to(root)}: {exc}"); continue
     if not os.access(script, os.X_OK): errors.append(f"실행 권한 없음: {script.relative_to(root)}")
+    if git_modes and git_modes.get(script.name, "100755") != "100755":
+        errors.append(f"git 실행 비트 없음: {script.relative_to(root)}")
     if not content.startswith("#!"): errors.append(f"shebang 없음: {script.relative_to(root)}")
     if script.name == "_common.sh":
         if not re.search(r"^need_python3\(\)", content, re.M) or not re.search(r"^need_python3\s*$", content, re.M): errors.append("_common.sh python3 가드 없음")
